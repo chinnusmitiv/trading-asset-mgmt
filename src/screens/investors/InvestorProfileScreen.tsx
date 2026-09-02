@@ -270,7 +270,7 @@ export const InvestorProfileScreen: React.FC = () => {
                 value={currentMonthlyReturnExpected}
                 compact
                 accentColor={THEME.colors.accent.amber}
-                deltaText="Active Run-Rate"
+                deltaText={`${totalPrincipal > 0 ? ((currentMonthlyReturnExpected / totalPrincipal) * 100).toFixed(2) : '0.00'}% p.m. Effective`}
               />
             </View>
 
