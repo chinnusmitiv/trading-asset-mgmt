@@ -23,6 +23,7 @@ import {
   InvestorDocument,
   Staff,
   Trade,
+  StaffCommission,
   Expense,
   Salary,
   AuditLog,
@@ -135,10 +136,15 @@ export class AppsScriptRepository
   }
 
   // --- Trades ---
-  async getTrades(filters?: { staffId?: string; status?: string }): Promise<Trade[]> {
+  async getTrades(filters?: { staffId?: string; status?: string; asset?: string }): Promise<Trade[]> {
     const res = await this.client.request<Trade[]>('trades.list', filters);
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
+  }
+
+  async getTradeDetails(tradeId: string): Promise<Trade | null> {
+    const res = await this.client.request<Trade>('trades.get', { tradeId });
+    return res.success ? res.data : null;
   }
 
   async createTrade(data: any, requestId?: string): Promise<Trade> {
@@ -149,6 +155,12 @@ export class AppsScriptRepository
 
   async updateTradeStatus(tradeId: string, status: Trade['status'], notes?: string): Promise<Trade> {
     const res = await this.client.request<Trade>('trades.update', { tradeId, status, notes });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async settleTrade(tradeId: string, requestId?: string): Promise<{ trade: Trade; commission?: StaffCommission }> {
+    const res = await this.client.request<{ trade: Trade; commission?: StaffCommission }>('trades.settle', { tradeId }, requestId);
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
   }
@@ -165,6 +177,12 @@ export class AppsScriptRepository
     return res.success ? res.data : null;
   }
 
+  async getStaffDetails(staffId: string) {
+    const res = await this.client.request<any>('staff.details', { staffId });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
   async createStaff(data: Omit<Staff, 'staffId' | 'createdAt' | 'updatedAt'>): Promise<Staff> {
     const res = await this.client.request<Staff>('staff.create', data);
     if (!res.success || !res.data) throw new Error(res.message);
@@ -173,6 +191,24 @@ export class AppsScriptRepository
 
   async updateStaff(staffId: string, fields: Partial<Staff>): Promise<Staff> {
     const res = await this.client.request<Staff>('staff.update', { staffId, fields });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async getCommissions(filters?: { staffId?: string; period?: string }): Promise<StaffCommission[]> {
+    const res = await this.client.request<StaffCommission[]>('commissions.list', filters);
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async calculateAndCreateCommission(data: Omit<StaffCommission, 'commissionId' | 'createdAt'>, requestId?: string): Promise<StaffCommission> {
+    const res = await this.client.request<StaffCommission>('commissions.create', data, requestId);
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async updateCommissionStatus(commissionId: string, status: StaffCommission['status']): Promise<StaffCommission> {
+    const res = await this.client.request<StaffCommission>('commissions.approve', { commissionId, status });
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
   }

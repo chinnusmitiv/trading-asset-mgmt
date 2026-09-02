@@ -8,9 +8,11 @@ import {
   RefreshControl,
   TouchableOpacity
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import { Button } from '../../components/common/Button';
 import { LoadingState } from '../../components/common/LoadingState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { useAuth } from '../../store/AuthContext';
@@ -20,6 +22,7 @@ import { formatDate } from '../../utils/date';
 import { hasPermission } from '../../services/auth/authService';
 
 export const StaffListScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const { user, repository } = useAuth();
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +51,11 @@ export const StaffListScreen: React.FC = () => {
     : staffList.filter(s => s.staffId === user?.staffId);
 
   const renderStaffCard = ({ item }: { item: Staff }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.7}
+      onPress={() => navigation.navigate('StaffDetails', { staffId: item.staffId })}
+    >
       <View style={styles.header}>
         <View>
           <Text style={styles.name}>{item.name}</Text>
@@ -79,7 +86,7 @@ export const StaffListScreen: React.FC = () => {
           <Text style={styles.detailValue}>{formatDate(item.joiningDate)}</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -88,6 +95,15 @@ export const StaffListScreen: React.FC = () => {
         title="Staff & Traders"
         subtitle={`${visibleStaff.length} Active Team Members`}
         user={user}
+        rightAction={
+          user?.role === 'Admin' || user?.role === 'Manager' ? (
+            <Button
+              title="+ Add Staff"
+              size="sm"
+              onPress={() => navigation.navigate('AddStaff')}
+            />
+          ) : undefined
+        }
       />
 
       <View style={styles.container}>

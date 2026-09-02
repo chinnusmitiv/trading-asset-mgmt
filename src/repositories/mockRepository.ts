@@ -23,6 +23,7 @@ import {
   InvestorDocument,
   Staff,
   Trade,
+  StaffCommission,
   Expense,
   Salary,
   AuditLog,
@@ -100,6 +101,11 @@ export class MockRepository
     { tradeId: 'TRD-00001', staffId: 'STAFF-00002', tradeDate: '2026-09-01', asset: 'BANKNIFTY_FUT', tradeType: 'INTRADAY', capitalUsed: 2500000, entryPrice: 51200, exitPrice: 51650, quantity: 300, grossProfit: 135000, grossLoss: 0, netPnL: 135000, appliedPercentage: 20, staffShare: 27000, companyShare: 108000, roiPercentage: 5.4, status: 'Settled', notes: 'Morning breakout', createdAt: '2026-09-01T15:30:00.000Z', createdBy: 'USR-00003' },
     { tradeId: 'TRD-00002', staffId: 'STAFF-00002', tradeDate: '2026-09-02', asset: 'NIFTY_24500_PE', tradeType: 'OPTION', capitalUsed: 1500000, entryPrice: 120, exitPrice: 45, quantity: 1200, grossProfit: 90000, grossLoss: 0, netPnL: 90000, appliedPercentage: 20, staffShare: 18000, companyShare: 72000, roiPercentage: 6.0, status: 'Settled', notes: 'Expiry theta decay', createdAt: '2026-09-02T15:30:00.000Z', createdBy: 'USR-00003' },
     { tradeId: 'TRD-00003', staffId: 'STAFF-00003', tradeDate: '2026-09-02', asset: 'RELIANCE_EQ', tradeType: 'SWING', capitalUsed: 3000000, entryPrice: 2980, exitPrice: 2950, quantity: 1000, grossProfit: 0, grossLoss: 30000, netPnL: -30000, appliedPercentage: 20, staffShare: 0, companyShare: -30000, roiPercentage: -1.0, status: 'Settled', notes: 'Stop loss hit', createdAt: '2026-09-02T15:30:00.000Z', createdBy: 'USR-00001' }
+  ];
+
+  private commissions: StaffCommission[] = [
+    { commissionId: 'COMM-00001', staffId: 'STAFF-00002', tradeId: 'TRD-00001', commissionPeriod: '2026-09', baseAmount: 135000, appliedPercentage: 20, commissionAmount: 27000, status: 'Calculated', createdAt: '2026-09-01T16:00:00.000Z' },
+    { commissionId: 'COMM-00002', staffId: 'STAFF-00002', tradeId: 'TRD-00002', commissionPeriod: '2026-09', baseAmount: 90000, appliedPercentage: 20, commissionAmount: 18000, status: 'Calculated', createdAt: '2026-09-02T16:00:00.000Z' }
   ];
 
   private expenses: Expense[] = [
@@ -315,7 +321,7 @@ export class MockRepository
   }
 
   // --- Trade Methods ---
-  async getTrades(filters?: { staffId?: string; status?: string }): Promise<Trade[]> {
+  async getTrades(filters?: { staffId?: string; status?: string; asset?: string }): Promise<Trade[]> {
     let list = [...this.trades];
     if (filters?.staffId) {
       list = list.filter(t => t.staffId === filters.staffId);
@@ -323,7 +329,15 @@ export class MockRepository
     if (filters?.status && filters.status !== 'All') {
       list = list.filter(t => t.status === filters.status);
     }
+    if (filters?.asset) {
+      const q = filters.asset.toLowerCase();
+      list = list.filter(t => t.asset.toLowerCase().includes(q));
+    }
     return list;
+  }
+
+  async getTradeDetails(tradeId: string): Promise<Trade | null> {
+    return this.trades.find(t => t.tradeId === tradeId) || null;
   }
 
   async createTrade(
@@ -336,6 +350,7 @@ export class MockRepository
 
     const netPnL = calculateTradePnL(data.grossProfit, data.grossLoss);
     const staffMember = this.staff.find(s => s.staffId === data.staffId);
+    // Lock historical applied percentage
     const appliedPct = staffMember ? staffMember.tradingPercentage : 20;
     const staffShare = calculateStaffShare(netPnL, appliedPct);
     const companyShare = calculateCompanyShare(netPnL, staffShare);
@@ -370,6 +385,34 @@ export class MockRepository
     return this.trades[idx];
   }
 
+  async settleTrade(tradeId: string, requestId?: string): Promise<{ trade: Trade; commission?: StaffCommission }> {
+    if (requestId && this.idempotencyCache.has(requestId)) {
+      return this.idempotencyCache.get(requestId);
+    }
+
+    const trade = await this.updateTradeStatus(tradeId, 'Settled');
+    let commission: StaffCommission | undefined = undefined;
+
+    // Automatically generate commission record if trader earned profit cut
+    if (trade.staffShare > 0) {
+      const month = trade.tradeDate.slice(0, 7);
+      commission = await this.calculateAndCreateCommission({
+        staffId: trade.staffId,
+        tradeId: trade.tradeId,
+        commissionPeriod: month,
+        baseAmount: trade.netPnL,
+        appliedPercentage: trade.appliedPercentage,
+        commissionAmount: trade.staffShare,
+        status: 'Calculated',
+        notes: `Commission for ${trade.asset} (${trade.tradeId})`
+      });
+    }
+
+    const result = { trade, commission };
+    if (requestId) this.idempotencyCache.set(requestId, result);
+    return result;
+  }
+
   // --- Staff Methods ---
   async getStaffList(): Promise<Staff[]> {
     return [...this.staff];
@@ -377,6 +420,42 @@ export class MockRepository
 
   async getStaffById(staffId: string): Promise<Staff | null> {
     return this.staff.find(s => s.staffId === staffId) || null;
+  }
+
+  async getStaffDetails(staffId: string) {
+    const member = this.staff.find(s => s.staffId === staffId);
+    if (!member) throw new Error(`Staff member ${staffId} not found`);
+
+    const staffTrades = this.trades.filter(t => t.staffId === staffId);
+    const staffCommissions = this.commissions.filter(c => c.staffId === staffId);
+
+    let totalNetPnL = 0;
+    let totalStaffShare = 0;
+    let totalCompanyShare = 0;
+    let winningTrades = 0;
+
+    staffTrades.forEach(t => {
+      totalNetPnL += t.netPnL;
+      totalStaffShare += t.staffShare;
+      totalCompanyShare += t.companyShare;
+      if (t.netPnL > 0) winningTrades++;
+    });
+
+    const winRate = staffTrades.length > 0 ? (winningTrades / staffTrades.length) * 100 : 0;
+
+    return {
+      staff: member,
+      trades: staffTrades,
+      commissions: staffCommissions,
+      metrics: {
+        totalTrades: staffTrades.length,
+        winningTrades,
+        winRate,
+        totalNetPnL,
+        totalStaffShare,
+        totalCompanyShare
+      }
+    };
   }
 
   async createStaff(data: Omit<Staff, 'staffId' | 'createdAt' | 'updatedAt'>): Promise<Staff> {
@@ -405,6 +484,51 @@ export class MockRepository
     };
     await this.logEvent('STAFF_UPDATED', 'Staff', staffId, oldVal, this.staff[idx], 'Updated staff details');
     return this.staff[idx];
+  }
+
+  async getCommissions(filters?: { staffId?: string; period?: string }): Promise<StaffCommission[]> {
+    let list = [...this.commissions];
+    if (filters?.staffId) {
+      list = list.filter(c => c.staffId === filters.staffId);
+    }
+    if (filters?.period) {
+      list = list.filter(c => c.commissionPeriod === filters.period);
+    }
+    return list;
+  }
+
+  async calculateAndCreateCommission(
+    data: Omit<StaffCommission, 'commissionId' | 'createdAt'>,
+    requestId?: string
+  ): Promise<StaffCommission> {
+    if (requestId && this.idempotencyCache.has(requestId)) {
+      return this.idempotencyCache.get(requestId);
+    }
+    const seq = this.commissions.length + 1;
+    const newId = `COMM-${('00000' + seq).slice(-5)}`;
+    const newComm: StaffCommission = {
+      ...data,
+      commissionId: newId,
+      createdAt: new Date().toISOString()
+    };
+    this.commissions.unshift(newComm);
+    if (requestId) this.idempotencyCache.set(requestId, newComm);
+    await this.logEvent('COMMISSION_CREATED', 'Trading', newId, null, newComm, `Commission created for ${data.staffId}`);
+    return newComm;
+  }
+
+  async updateCommissionStatus(commissionId: string, status: StaffCommission['status']): Promise<StaffCommission> {
+    const idx = this.commissions.findIndex(c => c.commissionId === commissionId);
+    if (idx === -1) throw new Error('Commission not found');
+    const oldVal = { ...this.commissions[idx] };
+    this.commissions[idx].status = status;
+    if (status === 'Approved') {
+      this.commissions[idx].approvedAt = new Date().toISOString();
+    } else if (status === 'Paid') {
+      this.commissions[idx].paidAt = new Date().toISOString();
+    }
+    await this.logEvent('COMMISSION_STATUS_UPDATED', 'Trading', commissionId, oldVal, this.commissions[idx], `Commission status changed to ${status}`);
+    return this.commissions[idx];
   }
 
   // --- Finance Methods ---

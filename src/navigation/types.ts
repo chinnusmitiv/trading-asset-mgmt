@@ -21,7 +21,11 @@ export type RootStackParamList = {
   AddInvestment: { investorId: string };
   RecordPayment: { investorId: string; investmentId?: string };
   AddBankDetails: { investorId: string };
-  AddTrade: undefined;
+  StaffDetails: { staffId: string };
+  AddStaff: { staffId?: string } | undefined;
+  StaffCommissions: { staffId?: string } | undefined;
+  AddTrade: { staffId?: string } | undefined;
+  TradeDetails: { tradeId: string };
   AddExpense: undefined;
   Settings: undefined;
   AuditLog: undefined;

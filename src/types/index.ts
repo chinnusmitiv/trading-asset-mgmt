@@ -143,6 +143,23 @@ export interface Trade {
   createdBy?: string;
 }
 
+export type CommissionStatus = 'Calculated' | 'Approved' | 'Paid' | 'Cancelled';
+
+export interface StaffCommission {
+  commissionId: string;
+  staffId: string;
+  tradeId?: string;
+  commissionPeriod: string; // YYYY-MM
+  baseAmount: number;
+  appliedPercentage: number;
+  commissionAmount: number;
+  status: CommissionStatus;
+  notes?: string;
+  createdAt: string;
+  approvedAt?: string;
+  paidAt?: string;
+}
+
 export type ExpenseCategory =
   | 'Rent'
   | 'Electricity'

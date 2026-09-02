@@ -12,6 +12,7 @@ import {
   InvestorDocument,
   Staff,
   Trade,
+  StaffCommission,
   Expense,
   Salary,
   AuditLog,
@@ -44,16 +45,34 @@ export interface IInvestorRepository {
 }
 
 export interface ITradeRepository {
-  getTrades(filters?: { staffId?: string; status?: string }): Promise<Trade[]>;
+  getTrades(filters?: { staffId?: string; status?: string; asset?: string }): Promise<Trade[]>;
+  getTradeDetails(tradeId: string): Promise<Trade | null>;
   createTrade(trade: Omit<Trade, 'tradeId' | 'createdAt' | 'netPnL' | 'staffShare' | 'companyShare' | 'roiPercentage' | 'appliedPercentage'>, requestId?: string): Promise<Trade>;
   updateTradeStatus(tradeId: string, status: Trade['status'], notes?: string): Promise<Trade>;
+  settleTrade(tradeId: string, requestId?: string): Promise<{ trade: Trade; commission?: StaffCommission }>;
 }
 
 export interface IStaffRepository {
   getStaffList(): Promise<Staff[]>;
   getStaffById(staffId: string): Promise<Staff | null>;
+  getStaffDetails(staffId: string): Promise<{
+    staff: Staff;
+    trades: Trade[];
+    commissions: StaffCommission[];
+    metrics: {
+      totalTrades: number;
+      winningTrades: number;
+      winRate: number;
+      totalNetPnL: number;
+      totalStaffShare: number;
+      totalCompanyShare: number;
+    };
+  }>;
   createStaff(staff: Omit<Staff, 'staffId' | 'createdAt' | 'updatedAt'>): Promise<Staff>;
   updateStaff(staffId: string, fields: Partial<Staff>): Promise<Staff>;
+  getCommissions(filters?: { staffId?: string; period?: string }): Promise<StaffCommission[]>;
+  calculateAndCreateCommission(data: Omit<StaffCommission, 'commissionId' | 'createdAt'>, requestId?: string): Promise<StaffCommission>;
+  updateCommissionStatus(commissionId: string, status: StaffCommission['status']): Promise<StaffCommission>;
 }
 
 export interface IFinanceRepository {

@@ -8,10 +8,12 @@ import {
   RefreshControl,
   TouchableOpacity
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
 import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import { Button } from '../../components/common/Button';
 import { LoadingState } from '../../components/common/LoadingState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { useAuth } from '../../store/AuthContext';
@@ -20,8 +22,10 @@ import { formatCurrency } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 
 export const TradingDashboardScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const { user, repository } = useAuth();
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
@@ -31,37 +35,53 @@ export const TradingDashboardScreen: React.FC = () => {
       const filters = user?.role === 'Staff' ? { staffId: user.staffId } : undefined;
       const data = await repository.getTrades(filters);
       setTrades(data);
+      applyFilter(data, statusFilter);
     } catch (e) {
       // Handle error
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [repository, user]);
+  }, [repository, user, statusFilter]);
 
   useEffect(() => {
     loadTrades();
   }, [loadTrades]);
 
-  const filteredTrades = statusFilter === 'All' ? trades : trades.filter(t => t.status === statusFilter);
+  const applyFilter = (data: Trade[], status: string) => {
+    if (status === 'All') {
+      setFilteredTrades(data);
+    } else {
+      setFilteredTrades(data.filter(t => t.status === status));
+    }
+  };
 
-  // Compute live aggregates
-  const totalPnL = trades.reduce((acc, t) => acc + t.netPnL, 0);
-  const totalStaffShare = trades.reduce((acc, t) => acc + t.staffShare, 0);
-  const totalCompanyShare = trades.reduce((acc, t) => acc + t.companyShare, 0);
+  const handleStatusChange = (status: string) => {
+    setStatusFilter(status);
+    applyFilter(trades, status);
+  };
+
+  // Aggregated KPIs
+  const totalPnL = trades.reduce((sum, t) => sum + t.netPnL, 0);
+  const totalStaffShare = trades.reduce((sum, t) => sum + t.staffShare, 0);
+  const totalCompanyShare = trades.reduce((sum, t) => sum + t.companyShare, 0);
   const winningTrades = trades.filter(t => t.netPnL > 0).length;
   const winRate = trades.length > 0 ? (winningTrades / trades.length) * 100 : 0;
 
-  const renderTradeItem = ({ item }: { item: Trade }) => {
+  const renderTradeCard = ({ item }: { item: Trade }) => {
     const isProfit = item.netPnL >= 0;
 
     return (
-      <View style={styles.tradeCard}>
+      <TouchableOpacity
+        style={styles.tradeCard}
+        activeOpacity={0.7}
+        onPress={() => navigation.navigate('TradeDetails', { tradeId: item.tradeId })}
+      >
         <View style={styles.tradeHeader}>
           <View>
             <Text style={styles.assetName}>{item.asset}</Text>
             <Text style={styles.tradeSub}>
-              {formatDate(item.tradeDate)} • {item.tradeType}
+              {formatDate(item.tradeDate)} • {item.tradeType} ({item.tradeId})
             </Text>
           </View>
           <StatusBadge status={item.status} size="sm" />
@@ -95,8 +115,9 @@ export const TradingDashboardScreen: React.FC = () => {
           <Text style={styles.tradeFooterText}>
             Margin: {formatCurrency(item.capitalUsed)} • ROI: {item.roiPercentage.toFixed(1)}%
           </Text>
+          <Text style={styles.viewDetailsLink}>View Details ›</Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -106,6 +127,13 @@ export const TradingDashboardScreen: React.FC = () => {
         title="Trading Operations"
         subtitle={user?.role === 'Staff' ? 'Your Personal Trading Book' : 'Firm Prop Trading Books'}
         user={user}
+        rightAction={
+          <Button
+            title="+ Log Trade"
+            size="sm"
+            onPress={() => navigation.navigate('AddTrade')}
+          />
+        }
       />
 
       <View style={styles.container}>
@@ -164,7 +192,7 @@ export const TradingDashboardScreen: React.FC = () => {
           <FlatList
             data={filteredTrades}
             keyExtractor={item => item.tradeId}
-            renderItem={renderTradeItem}
+            renderItem={renderTradeCard}
             contentContainerStyle={styles.listContent}
             refreshControl={
               <RefreshControl
@@ -180,7 +208,7 @@ export const TradingDashboardScreen: React.FC = () => {
               <EmptyState
                 icon="📊"
                 title="No Trades Found"
-                message="No trading logs found for this filter."
+                message="No trading records match the selected filter."
               />
             }
           />
@@ -202,7 +230,7 @@ const styles = StyleSheet.create({
   kpiRow: {
     flexDirection: 'row',
     gap: THEME.spacing.sm,
-    marginVertical: THEME.spacing.md
+    marginVertical: THEME.spacing.sm
   },
   filterPills: {
     flexDirection: 'row',
@@ -282,10 +310,18 @@ const styles = StyleSheet.create({
     color: THEME.colors.text.primary
   },
   tradeFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 2
   },
   tradeFooterText: {
     fontSize: 11,
     color: THEME.colors.text.muted
+  },
+  viewDetailsLink: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.accent.indigo
   }
 });
