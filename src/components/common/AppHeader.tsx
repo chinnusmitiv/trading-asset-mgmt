@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../../constants/theme';
 import { User } from '../../types';
+import { SyncStatusBanner } from './SyncStatusBanner';
 
 interface AppHeaderProps {
   title: string;
@@ -18,54 +20,67 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onProfilePress,
   rightAction
 }) => {
-  return (
-    <View style={styles.container}>
-      <View style={styles.textContainer}>
-        <Text style={styles.title}>{title}</Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-      </View>
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 16
+  );
 
-      <View style={styles.rightContainer}>
-        {rightAction}
-        {user ? (
-          <TouchableOpacity
-            style={styles.avatarButton}
-            onPress={onProfilePress}
-            activeOpacity={0.7}
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
-              </Text>
-            </View>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>{user.role}</Text>
-            </View>
-          </TouchableOpacity>
-        ) : null}
+  return (
+    <View style={[styles.wrapper, { paddingTop: topPadding }]}>
+      <SyncStatusBanner />
+      <View style={styles.container}>
+        <View style={styles.textContainer}>
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        </View>
+
+        <View style={styles.rightContainer}>
+          {rightAction}
+          {user ? (
+            <TouchableOpacity
+              style={styles.avatarButton}
+              onPress={onProfilePress}
+              activeOpacity={0.7}
+            >
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+                </Text>
+              </View>
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleBadgeText}>{user.role}</Text>
+              </View>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  wrapper: {
+    width: '100%',
+    backgroundColor: THEME.colors.background.card,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.colors.background.border
+  },
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: THEME.spacing.lg,
-    paddingTop: THEME.spacing.md,
-    paddingBottom: THEME.spacing.md,
-    backgroundColor: THEME.colors.background.primary,
-    borderBottomWidth: 1,
-    borderBottomColor: THEME.colors.background.border
+    paddingHorizontal: THEME.spacing.md,
+    paddingVertical: THEME.spacing.sm,
+    backgroundColor: THEME.colors.background.card
   },
   textContainer: {
-    flex: 1
+    flex: 1,
+    marginRight: THEME.spacing.sm
   },
   title: {
-    fontSize: THEME.typography.fontSize.xl,
-    fontWeight: '700',
+    fontSize: THEME.typography.fontSize.lg,
+    fontWeight: '800',
     color: THEME.colors.text.primary,
     letterSpacing: -0.3
   },
@@ -77,22 +92,22 @@ const styles = StyleSheet.create({
   rightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: THEME.spacing.sm
+    gap: THEME.spacing.xs
   },
   avatarButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: THEME.colors.background.card,
-    paddingHorizontal: THEME.spacing.sm,
+    backgroundColor: THEME.colors.background.cardElevated,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: THEME.borderRadius.full,
     borderWidth: 1,
     borderColor: THEME.colors.background.border
   },
   avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: THEME.colors.accent.indigo,
     alignItems: 'center',
     justifyContent: 'center',
@@ -100,8 +115,8 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     color: '#FFF',
-    fontWeight: '700',
-    fontSize: 13
+    fontWeight: '800',
+    fontSize: 11
   },
   roleBadge: {
     paddingHorizontal: 6,

@@ -175,7 +175,7 @@ export type ExpenseCategory =
   | 'Professional_Fees'
   | 'Other';
 
-export type ExpenseStatus = 'Draft' | 'Submitted' | 'Approved' | 'Paid' | 'Rejected' | 'Cancelled';
+export type ExpenseStatus = 'Draft' | 'Submitted' | 'Pending' | 'Approved' | 'Paid' | 'Rejected' | 'Cancelled';
 
 export interface Expense {
   expenseId: string;
@@ -195,7 +195,7 @@ export interface Expense {
   approvedBy?: string;
 }
 
-export type SalaryStatus = 'Draft' | 'Approved' | 'Paid' | 'Cancelled';
+export type SalaryStatus = 'Draft' | 'Pending' | 'Approved' | 'Paid' | 'Cancelled';
 
 export interface Salary {
   salaryId: string;
@@ -209,6 +209,7 @@ export interface Salary {
   advance: number;
   netSalary: number;
   paymentDate?: string;
+  paymentMethod?: PaymentMethod;
   paymentStatus: SalaryStatus;
   paymentReference?: string;
   notes?: string;

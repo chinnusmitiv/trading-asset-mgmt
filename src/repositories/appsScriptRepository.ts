@@ -226,34 +226,49 @@ export class AppsScriptRepository
     return res.data;
   }
 
+  async getExpenseDetails(expenseId: string): Promise<Expense | null> {
+    const res = await this.client.request<Expense>('expenses.get', { expenseId });
+    return res.success ? res.data : null;
+  }
+
   async createExpense(data: Omit<Expense, 'expenseId' | 'createdAt'>, requestId?: string): Promise<Expense> {
     const res = await this.client.request<Expense>('expenses.create', data, requestId);
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
   }
 
-  async updateExpenseStatus(expenseId: string, status: Expense['status'], approverId?: string): Promise<Expense> {
-    const res = await this.client.request<Expense>('expenses.approve', { expenseId, status, approverId });
+  async updateExpenseStatus(expenseId: string, status: Expense['status'], approverId?: string, paymentReference?: string): Promise<Expense> {
+    const res = await this.client.request<Expense>('expenses.approve', { expenseId, status, approverId, paymentReference });
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
   }
 
-  async getSalaries(filters?: { month?: string; staffId?: string }): Promise<Salary[]> {
+  async getSalaries(filters?: { month?: string; staffId?: string; status?: string }): Promise<Salary[]> {
     const res = await this.client.request<Salary[]>('salaries.list', filters);
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
   }
 
-  async createSalary(data: any, requestId?: string): Promise<Salary> {
+  async getSalaryDetails(salaryId: string): Promise<Salary | null> {
+    const res = await this.client.request<Salary>('salaries.get', { salaryId });
+    return res.success ? res.data : null;
+  }
+
+  async createSalary(data: Omit<Salary, 'salaryId' | 'createdAt'>, requestId?: string): Promise<Salary> {
     const res = await this.client.request<Salary>('salaries.create', data, requestId);
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
   }
 
-  async updateSalaryStatus(salaryId: string, status: Salary['paymentStatus'], approverId?: string): Promise<Salary> {
-    const res = await this.client.request<Salary>('salaries.approve', { salaryId, status, approverId });
+  async updateSalaryStatus(salaryId: string, status: Salary['paymentStatus'], approverId?: string, paymentReference?: string): Promise<Salary> {
+    const res = await this.client.request<Salary>('salaries.approve', { salaryId, status, approverId, paymentReference });
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
+  }
+
+  async getStaffUnpaidCommissions(staffId: string, month: string): Promise<number> {
+    const res = await this.client.request<{ unpaidCommissions: number }>('staff.unpaidCommissions', { staffId, month });
+    return res.success && res.data ? res.data.unpaidCommissions : 0;
   }
 
   // --- Audit ---

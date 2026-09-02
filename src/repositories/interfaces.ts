@@ -78,11 +78,14 @@ export interface IStaffRepository {
 export interface IFinanceRepository {
   getDashboardSummary(period?: string): Promise<DashboardSummary>;
   getExpenses(filters?: { category?: string; status?: string }): Promise<Expense[]>;
+  getExpenseDetails(expenseId: string): Promise<Expense | null>;
   createExpense(expense: Omit<Expense, 'expenseId' | 'createdAt'>, requestId?: string): Promise<Expense>;
-  updateExpenseStatus(expenseId: string, status: Expense['status'], approverId?: string): Promise<Expense>;
-  getSalaries(filters?: { month?: string; staffId?: string }): Promise<Salary[]>;
-  createSalary(salary: Omit<Salary, 'salaryId' | 'createdAt' | 'netSalary'>, requestId?: string): Promise<Salary>;
-  updateSalaryStatus(salaryId: string, status: Salary['paymentStatus'], approverId?: string): Promise<Salary>;
+  updateExpenseStatus(expenseId: string, status: Expense['status'], approverId?: string, paymentReference?: string): Promise<Expense>;
+  getSalaries(filters?: { month?: string; staffId?: string; status?: string }): Promise<Salary[]>;
+  getSalaryDetails(salaryId: string): Promise<Salary | null>;
+  createSalary(salary: Omit<Salary, 'salaryId' | 'createdAt'>, requestId?: string): Promise<Salary>;
+  updateSalaryStatus(salaryId: string, status: Salary['paymentStatus'], approverId?: string, paymentReference?: string): Promise<Salary>;
+  getStaffUnpaidCommissions(staffId: string, month: string): Promise<number>;
 }
 
 export interface IAuditRepository {

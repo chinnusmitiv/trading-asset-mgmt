@@ -27,6 +27,10 @@ export type RootStackParamList = {
   AddTrade: { staffId?: string } | undefined;
   TradeDetails: { tradeId: string };
   AddExpense: undefined;
+  ExpenseDetails: { expenseId: string };
+  ProcessPayroll: { staffId?: string; month?: string } | undefined;
+  PayrollList: { month?: string } | undefined;
+  SalaryDetails: { salaryId: string };
   Settings: undefined;
   AuditLog: undefined;
 };

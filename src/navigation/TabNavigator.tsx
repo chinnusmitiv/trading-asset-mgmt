@@ -1,6 +1,7 @@
 import React from 'react';
-import { Text, StyleSheet, Platform } from 'react-native';
+import { Text, StyleSheet, Platform, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MainTabParamList } from './types';
 import { THEME } from '../constants/theme';
 
@@ -14,11 +15,23 @@ import { MoreMenuScreen } from '../screens/more/MoreMenuScreen';
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export const TabNavigator: React.FC = () => {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 8);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            height: 56 + bottomPadding,
+            paddingBottom: bottomPadding,
+            paddingTop: 6
+          }
+        ],
+        tabBarItemStyle: styles.tabBarItem,
         tabBarActiveTintColor: THEME.colors.accent.indigo,
         tabBarInactiveTintColor: THEME.colors.text.muted,
         tabBarLabelStyle: styles.tabLabel,
@@ -32,9 +45,11 @@ export const TabNavigator: React.FC = () => {
           else if (route.name === 'More') icon = '⋯';
 
           return (
-            <Text style={[styles.tabIcon, focused && styles.tabIconFocused]}>
-              {icon}
-            </Text>
+            <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
+              <Text style={[styles.tabIcon, focused && styles.tabIconFocused]}>
+                {icon}
+              </Text>
+            </View>
           );
         }
       })}
@@ -54,17 +69,36 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.colors.background.card,
     borderTopColor: THEME.colors.background.border,
     borderTopWidth: 1,
-    height: Platform.OS === 'ios' ? 88 : 64,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
-    paddingTop: 8
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6
+  },
+  tabBarItem: {
+    paddingVertical: 2,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  iconContainer: {
+    width: 32,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2
+  },
+  iconContainerFocused: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)'
   },
   tabLabel: {
-    fontSize: 11,
-    fontWeight: '700'
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 0
   },
   tabIcon: {
-    fontSize: 18,
-    opacity: 0.6
+    fontSize: 16,
+    opacity: 0.5
   },
   tabIconFocused: {
     opacity: 1

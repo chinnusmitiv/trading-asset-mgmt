@@ -618,6 +618,10 @@ export class MockRepository
     return list;
   }
 
+  async getExpenseDetails(expenseId: string): Promise<Expense | null> {
+    return this.expenses.find(e => e.expenseId === expenseId) || null;
+  }
+
   async createExpense(data: Omit<Expense, 'expenseId' | 'createdAt'>, requestId?: string): Promise<Expense> {
     if (requestId && this.idempotencyCache.has(requestId)) {
       return this.idempotencyCache.get(requestId);
@@ -635,7 +639,7 @@ export class MockRepository
     return newExpense;
   }
 
-  async updateExpenseStatus(expenseId: string, status: Expense['status'], approverId?: string): Promise<Expense> {
+  async updateExpenseStatus(expenseId: string, status: Expense['status'], approverId?: string, paymentReference?: string): Promise<Expense> {
     const idx = this.expenses.findIndex(e => e.expenseId === expenseId);
     if (idx === -1) throw new Error('Expense not found');
     const oldVal = { ...this.expenses[idx] };
@@ -644,11 +648,14 @@ export class MockRepository
       this.expenses[idx].approvedBy = approverId;
       this.expenses[idx].approvedAt = new Date().toISOString();
     }
+    if (paymentReference) {
+      this.expenses[idx].notes = (this.expenses[idx].notes ? this.expenses[idx].notes + ' | ' : '') + `Ref: ${paymentReference}`;
+    }
     await this.logEvent('EXPENSE_STATUS_UPDATED', 'Finance', expenseId, oldVal, this.expenses[idx], `Status changed to ${status}`);
     return this.expenses[idx];
   }
 
-  async getSalaries(filters?: { month?: string; staffId?: string }): Promise<Salary[]> {
+  async getSalaries(filters?: { month?: string; staffId?: string; status?: string }): Promise<Salary[]> {
     let list = [...this.salaries];
     if (filters?.month) {
       list = list.filter(s => s.salaryMonth === filters.month);
@@ -656,20 +663,34 @@ export class MockRepository
     if (filters?.staffId) {
       list = list.filter(s => s.staffId === filters.staffId);
     }
+    if (filters?.status && filters.status !== 'All') {
+      list = list.filter(s => s.paymentStatus === filters.status);
+    }
     return list;
   }
 
-  async createSalary(data: Omit<Salary, 'salaryId' | 'createdAt' | 'netSalary'>, requestId?: string): Promise<Salary> {
+  async getSalaryDetails(salaryId: string): Promise<Salary | null> {
+    return this.salaries.find(s => s.salaryId === salaryId) || null;
+  }
+
+  async getStaffUnpaidCommissions(staffId: string, month: string): Promise<number> {
+    const comms = this.commissions.filter(
+      c => c.staffId === staffId && c.commissionPeriod === month && (c.status === 'Calculated' || c.status === 'Approved')
+    );
+    return comms.reduce((sum, c) => sum + c.commissionAmount, 0);
+  }
+
+  async createSalary(data: Omit<Salary, 'salaryId' | 'createdAt'>, requestId?: string): Promise<Salary> {
     if (requestId && this.idempotencyCache.has(requestId)) {
       return this.idempotencyCache.get(requestId);
     }
     const netSalary = calculateNetSalary(
       data.basicSalary,
-      data.allowance,
-      data.bonus,
-      data.commission,
-      data.deduction,
-      data.advance
+      data.allowance || 0,
+      data.bonus || 0,
+      data.commission || 0,
+      data.deduction || 0,
+      data.advance || 0
     );
     const seq = this.salaries.length + 1;
     const newId = `SAL-${('00000' + seq).slice(-5)}`;
@@ -679,13 +700,22 @@ export class MockRepository
       netSalary,
       createdAt: new Date().toISOString()
     };
-    this.salaries.push(newSalary);
+    this.salaries.unshift(newSalary);
+
+    // Mark associated commissions for that staff & month as Paid if created
+    this.commissions.forEach(c => {
+      if (c.staffId === data.staffId && c.commissionPeriod === data.salaryMonth) {
+        c.status = 'Paid';
+        c.paidAt = new Date().toISOString();
+      }
+    });
+
     if (requestId) this.idempotencyCache.set(requestId, newSalary);
     await this.logEvent('SALARY_CREATED', 'Finance', newId, null, newSalary, `Salary slip for ${data.salaryMonth}`);
     return newSalary;
   }
 
-  async updateSalaryStatus(salaryId: string, status: Salary['paymentStatus'], approverId?: string): Promise<Salary> {
+  async updateSalaryStatus(salaryId: string, status: Salary['paymentStatus'], approverId?: string, paymentReference?: string): Promise<Salary> {
     const idx = this.salaries.findIndex(s => s.salaryId === salaryId);
     if (idx === -1) throw new Error('Salary not found');
     const oldVal = { ...this.salaries[idx] };
@@ -693,6 +723,12 @@ export class MockRepository
     if (approverId) {
       this.salaries[idx].approvedBy = approverId;
       this.salaries[idx].approvedAt = new Date().toISOString();
+    }
+    if (paymentReference) {
+      this.salaries[idx].paymentReference = paymentReference;
+    }
+    if (status === 'Paid') {
+      this.salaries[idx].paymentDate = new Date().toISOString().split('T')[0];
     }
     await this.logEvent('SALARY_STATUS_UPDATED', 'Finance', salaryId, oldVal, this.salaries[idx], `Status changed to ${status}`);
     return this.salaries[idx];

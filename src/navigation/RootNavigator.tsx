@@ -17,6 +17,11 @@ import { AddStaffScreen } from '../screens/staff/AddStaffScreen';
 import { StaffCommissionsScreen } from '../screens/staff/StaffCommissionsScreen';
 import { AddTradeScreen } from '../screens/trading/AddTradeScreen';
 import { TradeDetailsScreen } from '../screens/trading/TradeDetailsScreen';
+import { AddExpenseScreen } from '../screens/finance/AddExpenseScreen';
+import { ExpenseDetailsScreen } from '../screens/finance/ExpenseDetailsScreen';
+import { ProcessPayrollScreen } from '../screens/finance/ProcessPayrollScreen';
+import { PayrollListScreen } from '../screens/finance/PayrollListScreen';
+import { SalaryDetailsScreen } from '../screens/finance/SalaryDetailsScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { AuditLogScreen } from '../screens/audit/AuditLogScreen';
 import { LoadingState } from '../components/common/LoadingState';
@@ -124,6 +129,31 @@ export const RootNavigator: React.FC = () => {
               name="TradeDetails"
               component={TradeDetailsScreen}
               options={{ title: 'Trade Details' }}
+            />
+            <Stack.Screen
+              name="AddExpense"
+              component={AddExpenseScreen}
+              options={{ title: 'Log Expense' }}
+            />
+            <Stack.Screen
+              name="ExpenseDetails"
+              component={ExpenseDetailsScreen}
+              options={{ title: 'Expense Voucher' }}
+            />
+            <Stack.Screen
+              name="ProcessPayroll"
+              component={ProcessPayrollScreen}
+              options={{ title: 'Process Payroll' }}
+            />
+            <Stack.Screen
+              name="PayrollList"
+              component={PayrollListScreen}
+              options={{ title: 'Payroll Slips' }}
+            />
+            <Stack.Screen
+              name="SalaryDetails"
+              component={SalaryDetailsScreen}
+              options={{ title: 'Salary Slip' }}
             />
             <Stack.Screen
               name="Settings"

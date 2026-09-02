@@ -6,7 +6,8 @@ import {
   SafeAreaView,
   ScrollView,
   Switch,
-  Alert
+  Alert,
+  TouchableOpacity
 } from 'react-native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
@@ -14,6 +15,7 @@ import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { useSettings } from '../../store/SettingsContext';
 import { useAuth } from '../../store/AuthContext';
+import { useSync } from '../../store/SyncContext';
 
 export const SettingsScreen: React.FC = () => {
   const { user } = useAuth();
@@ -27,6 +29,15 @@ export const SettingsScreen: React.FC = () => {
     setCurrency,
     setTimezone
   } = useSettings();
+
+  const {
+    isOnline,
+    pendingCount,
+    isSyncing,
+    syncNow,
+    toggleOnlineStatus,
+    clearPendingQueue
+  } = useSync();
 
   const [inputUrl, setInputUrl] = useState(apiUrl);
   const [inputCurrency, setInputCurrency] = useState(currency);
@@ -47,6 +58,11 @@ export const SettingsScreen: React.FC = () => {
     }
   };
 
+  const handleManualSync = async () => {
+    const res = await syncNow();
+    Alert.alert('Sync Complete', `Processed: ${res.processed} mutations. Failed: ${res.failed}.`);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
@@ -56,6 +72,73 @@ export const SettingsScreen: React.FC = () => {
       />
 
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+        {/* Active Session & RBAC Card */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>ACTIVE SECURITY SESSION</Text>
+          <View style={styles.sessionGrid}>
+            <View style={styles.sessionRow}>
+              <Text style={styles.sessionLabel}>Logged User:</Text>
+              <Text style={styles.sessionValue}>{user?.fullName || '—'} ({user?.userId})</Text>
+            </View>
+            <View style={styles.sessionRow}>
+              <Text style={styles.sessionLabel}>Assigned Role:</Text>
+              <Text style={[styles.sessionValue, { color: THEME.colors.accent.indigo }]}>
+                {user?.role || 'Staff'}
+              </Text>
+            </View>
+            <View style={styles.sessionRow}>
+              <Text style={styles.sessionLabel}>Corporate Email:</Text>
+              <Text style={styles.sessionValue}>{user?.email || '—'}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Offline Cache & Sync Center */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>OFFLINE CACHING & SYNC QUEUE</Text>
+
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextGroup}>
+              <Text style={styles.switchLabel}>Online Connectivity Simulation</Text>
+              <Text style={styles.switchDesc}>
+                {isOnline ? '🟢 Connected to network' : '🟡 Offline mode active (Mutations queued)'}
+              </Text>
+            </View>
+            <Switch
+              value={isOnline}
+              onValueChange={toggleOnlineStatus}
+              trackColor={{ false: THEME.colors.background.border, true: THEME.colors.accent.emerald }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={styles.queueStatsBox}>
+            <Text style={styles.queueStatsText}>
+              Pending Offline Mutations: <Text style={{ fontWeight: '800', color: THEME.colors.accent.indigo }}>{pendingCount}</Text>
+            </Text>
+          </View>
+
+          <View style={styles.syncActionsRow}>
+            <Button
+              title={isSyncing ? 'Syncing...' : 'Force Sync Now'}
+              size="sm"
+              variant="primary"
+              loading={isSyncing}
+              onPress={handleManualSync}
+              style={{ flex: 1 }}
+            />
+            {pendingCount > 0 && (
+              <Button
+                title="Clear Queue"
+                size="sm"
+                variant="danger"
+                onPress={clearPendingQueue}
+                style={{ flex: 1 }}
+              />
+            )}
+          </View>
+        </View>
+
         {/* Environment & Data Mode */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>DATA REPOSITORY MODE</Text>
@@ -152,19 +235,35 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: THEME.colors.text.muted,
     letterSpacing: 0.8,
-    marginBottom: THEME.spacing.sm
+    marginBottom: THEME.spacing.xs
   },
   cardSubtitle: {
     fontSize: THEME.typography.fontSize.xs,
     color: THEME.colors.text.secondary,
-    lineHeight: 18,
-    marginBottom: THEME.spacing.sm
+    marginBottom: THEME.spacing.md,
+    lineHeight: 18
+  },
+  sessionGrid: {
+    gap: 6
+  },
+  sessionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 2
+  },
+  sessionLabel: {
+    fontSize: THEME.typography.fontSize.xs,
+    color: THEME.colors.text.secondary
+  },
+  sessionValue: {
+    fontSize: THEME.typography.fontSize.xs,
+    fontWeight: '700',
+    color: THEME.colors.text.primary
   },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: THEME.spacing.xs
+    justifyContent: 'space-between'
   },
   switchTextGroup: {
     flex: 1,
@@ -172,7 +271,7 @@ const styles = StyleSheet.create({
   },
   switchLabel: {
     fontSize: THEME.typography.fontSize.sm,
-    fontWeight: '700',
+    fontWeight: '600',
     color: THEME.colors.text.primary
   },
   switchDesc: {
@@ -180,12 +279,26 @@ const styles = StyleSheet.create({
     color: THEME.colors.text.muted,
     marginTop: 2
   },
+  queueStatsBox: {
+    backgroundColor: THEME.colors.background.cardElevated,
+    padding: THEME.spacing.sm,
+    borderRadius: THEME.borderRadius.md,
+    marginTop: THEME.spacing.sm,
+    marginBottom: THEME.spacing.xs
+  },
+  queueStatsText: {
+    fontSize: THEME.typography.fontSize.xs,
+    color: THEME.colors.text.secondary
+  },
+  syncActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: THEME.spacing.xs
+  },
   securityPill: {
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderRadius: THEME.borderRadius.md,
     padding: THEME.spacing.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: THEME.borderRadius.md,
     marginTop: THEME.spacing.xs
   },
   securityText: {
@@ -194,6 +307,6 @@ const styles = StyleSheet.create({
     lineHeight: 16
   },
   saveBtn: {
-    marginTop: THEME.spacing.sm
+    marginTop: THEME.spacing.xs
   }
 });

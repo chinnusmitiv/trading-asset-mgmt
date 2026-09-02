@@ -6,10 +6,13 @@ import {
   SafeAreaView,
   FlatList,
   RefreshControl,
-  TouchableOpacity
+  TouchableOpacity,
+  Modal,
+  ScrollView
 } from 'react-native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
+import { Button } from '../../components/common/Button';
 import { LoadingState } from '../../components/common/LoadingState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { useAuth } from '../../store/AuthContext';
@@ -22,6 +25,7 @@ export const AuditLogScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [moduleFilter, setModuleFilter] = useState('All');
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
   const loadAuditLogs = useCallback(async () => {
     try {
@@ -41,8 +45,22 @@ export const AuditLogScreen: React.FC = () => {
 
   const filteredLogs = moduleFilter === 'All' ? logs : logs.filter(l => l.module === moduleFilter);
 
+  const formatJsonPretty = (raw?: string) => {
+    if (!raw) return 'None (Initial Creation)';
+    try {
+      const parsed = JSON.parse(raw);
+      return JSON.stringify(parsed, null, 2);
+    } catch (e) {
+      return raw;
+    }
+  };
+
   const renderAuditItem = ({ item }: { item: AuditLog }) => (
-    <View style={styles.logCard}>
+    <TouchableOpacity
+      style={styles.logCard}
+      activeOpacity={0.7}
+      onPress={() => setSelectedLog(item)}
+    >
       <View style={styles.logHeader}>
         <View style={styles.actionBadge}>
           <Text style={styles.actionText}>{item.action}</Text>
@@ -66,17 +84,21 @@ export const AuditLogScreen: React.FC = () => {
         ) : null}
 
         {item.reason ? (
-          <Text style={styles.reasonText}>Reason / Note: {item.reason}</Text>
+          <Text style={styles.reasonText}>Reason: {item.reason}</Text>
         ) : null}
+
+        <View style={styles.inspectHintRow}>
+          <Text style={styles.inspectHint}>🔍 Tap to inspect before/after diff</Text>
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
         title="Audit Trail"
-        subtitle="Immutable Security & Mutation Ledger"
+        subtitle={`${logs.length} Immutable Log Entries`}
         user={user}
       />
 
@@ -132,6 +154,79 @@ export const AuditLogScreen: React.FC = () => {
           />
         )}
       </View>
+
+      {/* JSON / Field Diff Inspection Modal */}
+      <Modal
+        visible={!!selectedLog}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedLog(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Audit Event Inspection</Text>
+                <Text style={styles.modalSub}>
+                  {selectedLog?.auditId} • {selectedLog ? formatDateTime(selectedLog.timestamp) : ''}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedLog(null)} style={styles.closeBtn}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll}>
+              <View style={styles.metaBox}>
+                <Text style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Action: </Text>
+                  <Text style={styles.metaVal}>{selectedLog?.action}</Text>
+                </Text>
+                <Text style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Module: </Text>
+                  <Text style={styles.metaVal}>{selectedLog?.module}</Text>
+                </Text>
+                <Text style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Actor ID: </Text>
+                  <Text style={styles.metaVal}>{selectedLog?.userId}</Text>
+                </Text>
+                <Text style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Target Record: </Text>
+                  <Text style={styles.metaVal}>{selectedLog?.recordId || '—'}</Text>
+                </Text>
+                {selectedLog?.reason ? (
+                  <Text style={styles.metaRow}>
+                    <Text style={styles.metaLabel}>Justification: </Text>
+                    <Text style={styles.metaVal}>{selectedLog.reason}</Text>
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* State Diff Comparison */}
+              <Text style={styles.diffSectionTitle}>STATE MUTATION SNAPSHOT</Text>
+
+              <Text style={styles.diffBoxTitle}>Prior State (Old Value):</Text>
+              <View style={styles.codeBlock}>
+                <Text style={styles.codeText}>{formatJsonPretty(selectedLog?.oldValue)}</Text>
+              </View>
+
+              <Text style={[styles.diffBoxTitle, { marginTop: 12 }]}>New State (New Value):</Text>
+              <View style={[styles.codeBlock, styles.newCodeBlock]}>
+                <Text style={[styles.codeText, { color: THEME.colors.accent.emerald }]}>
+                  {formatJsonPretty(selectedLog?.newValue)}
+                </Text>
+              </View>
+            </ScrollView>
+
+            <Button
+              title="Close Inspector"
+              variant="secondary"
+              onPress={() => setSelectedLog(null)}
+              style={{ marginTop: THEME.spacing.sm }}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -189,23 +284,25 @@ const styles = StyleSheet.create({
     marginBottom: THEME.spacing.xs
   },
   actionBadge: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    backgroundColor: THEME.colors.background.cardElevated,
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border
   },
   actionText: {
-    color: THEME.colors.accent.indigo,
-    fontSize: 11,
-    fontWeight: '800'
+    fontSize: 10,
+    fontWeight: '800',
+    color: THEME.colors.accent.indigo
   },
   timestamp: {
     fontSize: 10,
     color: THEME.colors.text.muted
   },
   logBody: {
-    gap: 2,
-    marginTop: 4
+    marginTop: 4,
+    gap: 4
   },
   detailRow: {
     fontSize: THEME.typography.fontSize.xs
@@ -218,9 +315,112 @@ const styles = StyleSheet.create({
     fontWeight: '600'
   },
   reasonText: {
-    fontSize: THEME.typography.fontSize.xs,
-    color: THEME.colors.text.secondary,
+    fontSize: 11,
+    color: THEME.colors.accent.rose,
     fontStyle: 'italic',
-    marginTop: 4
+    marginTop: 2
+  },
+  inspectHintRow: {
+    marginTop: 6,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: THEME.colors.background.divider
+  },
+  inspectHint: {
+    fontSize: 10,
+    color: THEME.colors.accent.indigo,
+    fontWeight: '600'
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: THEME.spacing.md
+  },
+  modalContainer: {
+    backgroundColor: THEME.colors.background.card,
+    borderRadius: THEME.borderRadius.xl,
+    padding: THEME.spacing.lg,
+    width: '100%',
+    maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: THEME.spacing.md,
+    paddingBottom: THEME.spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.colors.background.divider
+  },
+  modalTitle: {
+    fontSize: THEME.typography.fontSize.lg,
+    fontWeight: '800',
+    color: THEME.colors.text.primary
+  },
+  modalSub: {
+    fontSize: THEME.typography.fontSize.xs,
+    color: THEME.colors.text.muted,
+    marginTop: 2
+  },
+  closeBtn: {
+    padding: 4
+  },
+  closeBtnText: {
+    fontSize: 18,
+    color: THEME.colors.text.muted,
+    fontWeight: '700'
+  },
+  modalScroll: {
+    maxHeight: 450
+  },
+  metaBox: {
+    backgroundColor: THEME.colors.background.cardElevated,
+    padding: THEME.spacing.sm,
+    borderRadius: THEME.borderRadius.md,
+    marginBottom: THEME.spacing.md,
+    gap: 4
+  },
+  metaRow: {
+    fontSize: THEME.typography.fontSize.xs
+  },
+  metaLabel: {
+    color: THEME.colors.text.muted,
+    fontWeight: '600'
+  },
+  metaVal: {
+    color: THEME.colors.text.primary,
+    fontWeight: '700'
+  },
+  diffSectionTitle: {
+    fontSize: THEME.typography.fontSize.xs,
+    fontWeight: '800',
+    color: THEME.colors.text.muted,
+    letterSpacing: 0.8,
+    marginBottom: 8
+  },
+  diffBoxTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.text.secondary,
+    marginBottom: 4
+  },
+  codeBlock: {
+    backgroundColor: '#0F172A',
+    padding: THEME.spacing.sm,
+    borderRadius: THEME.borderRadius.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border
+  },
+  newCodeBlock: {
+    borderColor: 'rgba(16, 185, 129, 0.3)'
+  },
+  codeText: {
+    fontFamily: 'Courier',
+    fontSize: 10,
+    color: THEME.colors.text.secondary
   }
 });

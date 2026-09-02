@@ -9,6 +9,7 @@ import {
   ScrollView,
   TouchableOpacity
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../../constants/theme';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
@@ -16,6 +17,7 @@ import { useAuth } from '../../store/AuthContext';
 import { useSettings } from '../../store/SettingsContext';
 
 export const LoginScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const { login } = useAuth();
   const { useMockData } = useSettings();
   const [username, setUsername] = useState('admin');
@@ -59,7 +61,7 @@ export const LoginScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? 24 : 12) }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
