@@ -8,10 +8,11 @@ A production-grade, enterprise financial management and proprietary trading oper
 1. [Key Features & Modules](#key-features--modules)
 2. [Google Sheets Backend Setup (Live Database)](#-google-sheets-backend-setup-live-database)
 3. [Running the Mobile App Locally](#-running-the-mobile-app-locally)
-4. [Demo Credentials (Mock Mode)](#-demo-credentials-mock-mode)
-5. [Automated Tests & Quality Checks](#-automated-tests--quality-checks)
-6. [Core Financial Invariants & Formulas](#-core-financial-invariants--formulas)
-7. [Project Structure](#-project-structure)
+4. [Building Android APK & Release Bundle](#-building-android-apk--release-bundle)
+5. [Demo Credentials (Mock Mode)](#-demo-credentials-mock-mode)
+6. [Automated Tests & Quality Checks](#-automated-tests--quality-checks)
+7. [Core Financial Invariants & Formulas](#-core-financial-invariants--formulas)
+8. [Project Structure](#-project-structure)
 
 ---
 
@@ -117,6 +118,44 @@ npm start
 - Press **`a`** → Open **Android Emulator** (Android Studio)
 - Press **`w`** → Open in **Web Browser**
 - Scan QR code with the **Expo Go** app on a physical iOS/Android phone
+
+---
+
+## 📱 Building Android APK & Release Bundle
+
+### Option 1: Local Gradle Build (from `android/` directory)
+
+Ensure your `JAVA_HOME` and `ANDROID_HOME` environment variables are set:
+
+```bash
+# Navigate to native android folder
+cd android
+
+# 1. Build Standalone Debug APK (Quickest / No signing required)
+./gradlew assembleDebug
+# Output: android/app/build/outputs/apk/debug/app-debug.apk
+
+# 2. Build Release APK
+./gradlew assembleRelease
+# Output: android/app/build/outputs/apk/release/app-release-unsigned.apk
+
+# 3. Build Google Play Store Bundle (.aab)
+./gradlew bundleRelease
+# Output: android/app/build/outputs/bundle/release/app-release.aab
+
+# Clean build cache
+./gradlew clean
+```
+
+### Option 2: Cloud Build with EAS (Direct APK Download Link)
+
+```bash
+# Build standalone installable APK on Expo cloud
+npx eas-cli build -p android --profile preview
+
+# Build production Play Store AAB bundle
+npx eas-cli build -p android --profile production
+```
 
 ---
 

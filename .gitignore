@@ -7,7 +7,9 @@ package-lock.json.bak
 dist/
 web-build/
 
-# Native builds
+# Native builds (Expo Continuous Native Generation)
+/android/
+/ios/
 *.orig.*
 *.jks
 *.p8
