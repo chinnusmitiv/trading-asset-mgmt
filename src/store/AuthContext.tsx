@@ -63,21 +63,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
-      } else if (useMockData) {
-        // Auto-login as Super Admin in mock development mode
-        const defaultUser: User = {
-          userId: 'USR-00001',
-          username: 'admin',
-          fullName: 'Super Admin',
-          email: 'admin@assetmgmt.internal',
-          role: 'Admin',
-          status: 'Active'
-        };
-        setUser(defaultUser);
-        setToken('mock_session_admin');
+      } else {
+        setUser(null);
+        setToken(null);
       }
     } catch (e) {
-      // Ignore
+      setUser(null);
+      setToken(null);
     } finally {
       setIsLoading(false);
     }
