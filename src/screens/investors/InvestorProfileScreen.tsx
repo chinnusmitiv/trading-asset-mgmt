@@ -9,7 +9,9 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
-  TextInput
+  TextInput,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
@@ -17,6 +19,7 @@ import { AppHeader } from '../../components/common/AppHeader';
 import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Button } from '../../components/common/Button';
+import { Input } from '../../components/common/Input';
 import { ConfirmationDialog } from '../../components/common/ConfirmationDialog';
 import { LoadingState } from '../../components/common/LoadingState';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -52,6 +55,19 @@ export const InvestorProfileScreen: React.FC = () => {
   const [documents, setDocuments] = useState<InvestorDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Edit Investor Profile Modal State
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    status: 'Active' as Investor['status'],
+    notes: ''
+  });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 
   // Confirmation modal state for marking payment as paid
   const [confirmPaymentModal, setConfirmPaymentModal] = useState<{
@@ -99,6 +115,54 @@ export const InvestorProfileScreen: React.FC = () => {
   const currentMonthlyReturnExpected = investments
     .filter(inv => inv.status === 'Active')
     .reduce((sum, inv) => sum + inv.monthlyReturn, 0);
+
+  // Open Edit Modal
+  const handleOpenEdit = () => {
+    if (!investor) return;
+    setEditForm({
+      name: investor.name,
+      phone: investor.phone,
+      email: investor.email || '',
+      address: investor.address || '',
+      status: investor.status,
+      notes: investor.notes || ''
+    });
+    setEditErrors({});
+    setEditModalVisible(true);
+  };
+
+  // Save Edit Changes
+  const handleSaveEdit = async () => {
+    const errors: Record<string, string> = {};
+    if (!editForm.name.trim()) errors.name = 'Full legal name is required';
+    if (!editForm.phone.trim()) errors.phone = 'Phone number is required';
+    if (editForm.email.trim() && !editForm.email.includes('@')) errors.email = 'Valid email is required';
+
+    if (Object.keys(errors).length > 0) {
+      setEditErrors(errors);
+      return;
+    }
+
+    setEditLoading(true);
+    try {
+      const updated = await repository.updateInvestor(investorId, {
+        name: editForm.name.trim(),
+        phone: editForm.phone.trim(),
+        email: editForm.email.trim() || undefined,
+        address: editForm.address.trim() || undefined,
+        status: editForm.status,
+        notes: editForm.notes.trim() || undefined
+      });
+      setInvestor(updated);
+      setEditModalVisible(false);
+      loadProfileData();
+      Alert.alert('Profile Updated', `Investor details for ${updated.name} updated successfully.`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update investor profile');
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   // Handle Mark Payment as Paid
   const handleMarkPaymentPaid = async () => {
@@ -156,6 +220,16 @@ export const InvestorProfileScreen: React.FC = () => {
         title={investor.name}
         subtitle={`${investor.investorId} • Onboarded ${formatDate(investor.joiningDate)}`}
         user={user}
+        rightAction={
+          user?.role !== 'Staff' ? (
+            <Button
+              title="✏️ Edit"
+              size="sm"
+              variant="outline"
+              onPress={handleOpenEdit}
+            />
+          ) : undefined
+        }
       />
 
       {/* Tabs Header */}
@@ -213,7 +287,17 @@ export const InvestorProfileScreen: React.FC = () => {
                   <Text style={styles.profileName}>{investor.name}</Text>
                   <Text style={styles.profileId}>{investor.investorId}</Text>
                 </View>
-                <StatusBadge status={investor.status} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <StatusBadge status={investor.status} />
+                  {user?.role !== 'Staff' && (
+                    <TouchableOpacity
+                      style={styles.inlineEditBtn}
+                      onPress={handleOpenEdit}
+                    >
+                      <Text style={styles.inlineEditBtnText}>✏️ Edit</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
 
               <View style={styles.divider} />
@@ -279,24 +363,23 @@ export const InvestorProfileScreen: React.FC = () => {
               <Button
                 title="+ New Investment Tranche"
                 onPress={() => navigation.navigate('AddInvestment', { investorId })}
-                variant="primary"
-                style={styles.actionBtn}
+                style={{ flex: 1 }}
               />
               <Button
-                title="+ Record Payment"
-                onPress={() => navigation.navigate('RecordPayment', { investorId })}
+                title="💳 Record Payment"
                 variant="secondary"
-                style={styles.actionBtn}
+                onPress={() => navigation.navigate('RecordPayment', { investorId })}
+                style={{ flex: 1 }}
               />
             </View>
           </View>
         )}
 
-        {/* TAB 2: INVESTMENTS (MULTI-TRANCHE) */}
+        {/* TAB 2: INVESTMENTS / TRANCHES */}
         {activeTab === 'investments' && (
           <View style={styles.tabContent}>
             <View style={styles.tabActionsHeader}>
-              <Text style={styles.tabCountText}>{investments.length} Investment Tranches</Text>
+              <Text style={styles.tabCountText}>{investments.length} Active Tranches</Text>
               <Button
                 title="+ Add Tranche"
                 size="sm"
@@ -306,9 +389,9 @@ export const InvestorProfileScreen: React.FC = () => {
 
             {investments.length === 0 ? (
               <EmptyState
-                icon="📄"
-                title="No Investments Yet"
-                message="Add the first investment tranche for this investor."
+                icon="💰"
+                title="No Investment Tranches"
+                message="Add the first capital investment tranche to start calculating monthly returns."
                 actionLabel="+ Add Tranche"
                 onAction={() => navigation.navigate('AddInvestment', { investorId })}
               />
@@ -398,48 +481,53 @@ export const InvestorProfileScreen: React.FC = () => {
                     <View style={styles.paymentBreakdown}>
                       <View style={styles.payRow}>
                         <Text style={styles.payLabel}>Profit Amount:</Text>
-                        <Text style={styles.payValue}>{formatCurrency(pay.profitAmount)}</Text>
+                        <Text style={styles.payValBold}>{formatCurrency(pay.profitAmount)}</Text>
                       </View>
                       {pay.principalAmount ? (
                         <View style={styles.payRow}>
-                          <Text style={styles.payLabel}>Principal Returned:</Text>
-                          <Text style={styles.payValue}>{formatCurrency(pay.principalAmount)}</Text>
+                          <Text style={styles.payLabel}>Principal Repaid:</Text>
+                          <Text style={styles.payValBold}>{formatCurrency(pay.principalAmount)}</Text>
                         </View>
                       ) : null}
-                      <View style={[styles.payRow, styles.totalPayRow]}>
+                      {pay.otherAmount ? (
+                        <View style={styles.payRow}>
+                          <Text style={styles.payLabel}>Other Adjustments:</Text>
+                          <Text style={styles.payValBold}>
+                            {formatCurrency(pay.otherAmount)}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.totalPayRow}>
                         <Text style={styles.totalPayLabel}>Total Disbursed:</Text>
                         <Text style={styles.totalPayValue}>{formatCurrency(pay.totalAmount)}</Text>
                       </View>
                     </View>
 
-                    <View style={styles.paymentFooter}>
-                      <Text style={styles.footerNote}>
-                        Method: {pay.paymentMethod} {pay.paymentReference ? `(${pay.paymentReference})` : ''}
-                      </Text>
-                      {pay.notes ? <Text style={styles.footerNote}>{pay.notes}</Text> : null}
-                    </View>
+                    {pay.paymentReference ? (
+                      <View style={styles.refBox}>
+                        <Text style={styles.refText}>UTR Reference: {pay.paymentReference}</Text>
+                      </View>
+                    ) : null}
 
-                    {/* Operational Action Buttons */}
-                    {!isReversed && (
-                      <View style={styles.paymentActions}>
+                    {/* Action Bar for Payments */}
+                    {user?.role !== 'Staff' && !isReversed && (
+                      <View style={styles.payActionsRow}>
                         {!isPaid && (
                           <Button
-                            title="Mark as Paid"
+                            title="✓ Mark as Paid"
                             size="sm"
-                            variant="success"
+                            variant="primary"
                             onPress={() => setConfirmPaymentModal({ visible: true, payment: pay })}
-                            style={styles.payActionBtn}
+                            style={{ flex: 1 }}
                           />
                         )}
-                        {isPaid && user?.role === 'Admin' && (
-                          <Button
-                            title="Reverse Payment"
-                            size="sm"
-                            variant="danger"
-                            onPress={() => setReverseModal({ visible: true, payment: pay, reason: '' })}
-                            style={styles.payActionBtn}
-                          />
-                        )}
+                        <Button
+                          title="↩ Reverse"
+                          size="sm"
+                          variant="danger"
+                          onPress={() => setReverseModal({ visible: true, payment: pay, reason: '' })}
+                          style={{ flex: 1 }}
+                        />
                       </View>
                     )}
                   </View>
@@ -452,50 +540,40 @@ export const InvestorProfileScreen: React.FC = () => {
         {/* TAB 4: BANK DETAILS */}
         {activeTab === 'bank' && (
           <View style={styles.tabContent}>
-            <View style={styles.tabActionsHeader}>
-              <Text style={styles.tabCountText}>Bank Settlement Details</Text>
-              <Button
-                title="+ Add Bank"
-                size="sm"
-                onPress={() => navigation.navigate('AddBankDetails', { investorId })}
-              />
-            </View>
-
             {bank ? (
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
                   <View>
                     <Text style={styles.cardTitle}>{bank.bankName}</Text>
-                    <Text style={styles.cardSub}>Account Holder: {bank.accountHolderName}</Text>
+                    <Text style={styles.cardSub}>Account Type: {bank.accountType}</Text>
                   </View>
-                  {bank.isPrimary ? (
-                    <View style={styles.primaryBadge}>
-                      <Text style={styles.primaryBadgeText}>PRIMARY</Text>
-                    </View>
-                  ) : null}
+                  <StatusBadge status={bank.isPrimary ? 'Active' : 'Inactive'} size="sm" />
                 </View>
 
                 <View style={styles.divider} />
 
-                <View style={styles.bankRows}>
-                  <View style={styles.bankRow}>
-                    <Text style={styles.bankLabel}>Account Number:</Text>
-                    <Text style={styles.bankValue}>
-                      {showUnmaskedBank ? '12345678904582' : maskBankAccount(bank.accountNumberMasked)}
+                <View style={styles.contactGrid}>
+                  <View style={styles.contactItem}>
+                    <Text style={styles.contactLabel}>Beneficiary Name</Text>
+                    <Text style={styles.contactValue}>{bank.accountHolderName}</Text>
+                  </View>
+                  <View style={styles.contactItem}>
+                    <Text style={styles.contactLabel}>Account Number</Text>
+                    <Text style={styles.contactValue}>
+                      {bank.accountNumberMasked}
                     </Text>
                   </View>
-
-                  <View style={styles.bankRow}>
-                    <Text style={styles.bankLabel}>IFSC Routing Code:</Text>
-                    <Text style={styles.bankValue}>{bank.ifscCode}</Text>
+                  <View style={styles.contactItem}>
+                    <Text style={styles.contactLabel}>IFSC Code</Text>
+                    <Text style={styles.contactValue}>{bank.ifscCode}</Text>
                   </View>
-
-                  <View style={styles.bankRow}>
-                    <Text style={styles.bankLabel}>Account Type:</Text>
-                    <Text style={styles.bankValue}>{bank.accountType}</Text>
+                  <View style={styles.contactItem}>
+                    <Text style={styles.contactLabel}>Account Type</Text>
+                    <Text style={styles.contactValue}>{bank.accountType}</Text>
                   </View>
                 </View>
 
+                {/* Admin Unmask Button */}
                 {user?.role === 'Admin' ? (
                   <TouchableOpacity
                     style={styles.unmaskToggle}
@@ -550,6 +628,110 @@ export const InvestorProfileScreen: React.FC = () => {
           </View>
         )}
       </ScrollView>
+
+      {/* EDIT INVESTOR MODAL */}
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.editModalContainer}>
+            <View style={styles.editModalHeader}>
+              <Text style={styles.editModalTitle}>Edit Investor Profile</Text>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.editModalScroll} keyboardShouldPersistTaps="handled">
+              <Input
+                label="Full Legal Name *"
+                value={editForm.name}
+                onChangeText={text => setEditForm(prev => ({ ...prev, name: text }))}
+                placeholder="e.g. Ramesh Chandra Verma"
+                error={editErrors.name}
+              />
+
+              <Input
+                label="Phone Number *"
+                value={editForm.phone}
+                onChangeText={text => setEditForm(prev => ({ ...prev, phone: text }))}
+                keyboardType="phone-pad"
+                placeholder="+91 98765 43210"
+                error={editErrors.phone}
+              />
+
+              <Input
+                label="Email Address"
+                value={editForm.email}
+                onChangeText={text => setEditForm(prev => ({ ...prev, email: text }))}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholder="investor@example.com"
+                error={editErrors.email}
+              />
+
+              <Input
+                label="Residential / Office Address"
+                value={editForm.address}
+                onChangeText={text => setEditForm(prev => ({ ...prev, address: text }))}
+                placeholder="e.g. Bandra West, Mumbai"
+              />
+
+              <Text style={styles.inputLabel}>Account Status</Text>
+              <View style={styles.statusPillsRow}>
+                {(['Active', 'Inactive', 'Suspended'] as const).map(st => (
+                  <TouchableOpacity
+                    key={st}
+                    style={[
+                      styles.statusPill,
+                      editForm.status === st && styles.statusPillActive
+                    ]}
+                    onPress={() => setEditForm(prev => ({ ...prev, status: st }))}
+                  >
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        editForm.status === st && styles.statusPillTextActive
+                      ]}
+                    >
+                      {st}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Input
+                label="Investor Category / Notes"
+                value={editForm.notes}
+                onChangeText={text => setEditForm(prev => ({ ...prev, notes: text }))}
+                placeholder="e.g. Family Office, HNI, Direct Referral"
+              />
+
+              <View style={styles.editModalActions}>
+                <Button
+                  title="Cancel"
+                  variant="secondary"
+                  onPress={() => setEditModalVisible(false)}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title="Save Changes"
+                  variant="primary"
+                  loading={editLoading}
+                  onPress={handleSaveEdit}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Confirmation Modal for Marking Paid */}
       <ConfirmationDialog
@@ -686,6 +868,19 @@ const styles = StyleSheet.create({
     color: THEME.colors.text.muted,
     marginTop: 2
   },
+  inlineEditBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: THEME.borderRadius.sm,
+    backgroundColor: THEME.colors.background.cardElevated,
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border
+  },
+  inlineEditBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.accent.indigo
+  },
   divider: {
     height: 1,
     backgroundColor: THEME.colors.background.divider,
@@ -700,7 +895,7 @@ const styles = StyleSheet.create({
   },
   contactLabel: {
     fontSize: THEME.typography.fontSize.xs,
-    color: THEME.colors.text.secondary
+    color: THEME.colors.text.muted
   },
   contactValue: {
     fontSize: THEME.typography.fontSize.xs,
@@ -712,25 +907,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: THEME.colors.text.muted,
     letterSpacing: 0.8,
-    marginTop: THEME.spacing.sm,
-    marginLeft: 4
+    marginTop: 4
   },
   kpiGrid: {
     flexDirection: 'row',
     gap: THEME.spacing.sm
   },
   actionsBox: {
+    flexDirection: 'row',
     gap: THEME.spacing.sm,
-    marginTop: THEME.spacing.sm
-  },
-  actionBtn: {
-    width: '100%'
+    marginTop: 4
   },
   tabActionsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: THEME.spacing.xs
+    alignItems: 'center'
   },
   tabCountText: {
     fontSize: THEME.typography.fontSize.sm,
@@ -756,39 +947,40 @@ const styles = StyleSheet.create({
   },
   cardSub: {
     fontSize: THEME.typography.fontSize.xs,
-    color: THEME.colors.text.secondary,
+    color: THEME.colors.text.muted,
     marginTop: 2
   },
   trancheMetrics: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: THEME.colors.background.cardElevated,
-    padding: THEME.spacing.sm,
-    borderRadius: THEME.borderRadius.md
+    justifyContent: 'space-between'
   },
   trancheMetricItem: {
     alignItems: 'center'
   },
   metricLabel: {
     fontSize: 10,
-    color: THEME.colors.text.muted,
-    marginBottom: 2
+    color: THEME.colors.text.muted
   },
   metricValueBold: {
     fontSize: THEME.typography.fontSize.sm,
-    fontWeight: '800',
-    color: THEME.colors.text.primary
+    fontWeight: '700',
+    color: THEME.colors.text.primary,
+    marginTop: 2
   },
   trancheFooter: {
     marginTop: THEME.spacing.sm,
-    gap: 2
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: THEME.colors.background.divider,
+    flexDirection: 'row',
+    justifyContent: 'space-between'
   },
   footerNote: {
-    fontSize: 11,
+    fontSize: 10,
     color: THEME.colors.text.muted
   },
   paymentBreakdown: {
-    gap: 4
+    gap: 6
   },
   payRow: {
     flexDirection: 'row',
@@ -798,16 +990,18 @@ const styles = StyleSheet.create({
     fontSize: THEME.typography.fontSize.xs,
     color: THEME.colors.text.secondary
   },
-  payValue: {
+  payValBold: {
     fontSize: THEME.typography.fontSize.xs,
     fontWeight: '600',
     color: THEME.colors.text.primary
   },
   totalPayRow: {
-    marginTop: 4,
-    paddingTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 6,
     borderTopWidth: 1,
-    borderTopColor: THEME.colors.background.divider
+    borderTopColor: THEME.colors.background.divider,
+    marginTop: 2
   },
   totalPayLabel: {
     fontSize: THEME.typography.fontSize.sm,
@@ -819,66 +1013,103 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: THEME.colors.accent.emerald
   },
-  paymentFooter: {
-    marginTop: THEME.spacing.sm,
-    paddingTop: THEME.spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: THEME.colors.background.divider
+  refBox: {
+    backgroundColor: THEME.colors.background.cardElevated,
+    padding: 8,
+    borderRadius: THEME.borderRadius.sm,
+    marginTop: 8
   },
-  paymentActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: THEME.spacing.sm,
-    gap: 8
-  },
-  payActionBtn: {
-    paddingHorizontal: 16
-  },
-  primaryBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
-  },
-  primaryBadgeText: {
-    color: THEME.colors.accent.emerald,
+  refText: {
     fontSize: 10,
-    fontWeight: '800'
+    color: THEME.colors.text.muted,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace'
   },
-  bankRows: {
-    gap: 6
-  },
-  bankRow: {
+  payActionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between'
-  },
-  bankLabel: {
-    fontSize: THEME.typography.fontSize.xs,
-    color: THEME.colors.text.secondary
-  },
-  bankValue: {
-    fontSize: THEME.typography.fontSize.xs,
-    fontWeight: '700',
-    color: THEME.colors.text.primary
+    gap: 8,
+    marginTop: 10
   },
   unmaskToggle: {
     marginTop: THEME.spacing.md,
-    alignItems: 'center',
-    paddingVertical: 6,
+    padding: THEME.spacing.sm,
     backgroundColor: THEME.colors.background.cardElevated,
-    borderRadius: THEME.borderRadius.md
+    borderRadius: THEME.borderRadius.sm,
+    alignItems: 'center'
   },
   unmaskToggleText: {
-    fontSize: 11,
-    color: THEME.colors.accent.indigo,
-    fontWeight: '700'
+    fontSize: THEME.typography.fontSize.xs,
+    fontWeight: '600',
+    color: THEME.colors.accent.indigo
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0,0,0,0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: THEME.spacing.lg
+  },
+  editModalContainer: {
+    backgroundColor: THEME.colors.background.card,
+    borderRadius: THEME.borderRadius.xl,
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border,
+    padding: THEME.spacing.lg
+  },
+  editModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: THEME.spacing.md
+  },
+  editModalTitle: {
+    fontSize: THEME.typography.fontSize.lg,
+    fontWeight: '800',
+    color: THEME.colors.text.primary
+  },
+  modalCloseIcon: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: THEME.colors.text.muted,
+    padding: 4
+  },
+  editModalScroll: {
+    paddingBottom: THEME.spacing.md,
+    gap: THEME.spacing.sm
+  },
+  statusPillsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: THEME.spacing.sm
+  },
+  statusPill: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: THEME.borderRadius.md,
+    backgroundColor: THEME.colors.background.cardElevated,
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border,
+    alignItems: 'center'
+  },
+  statusPillActive: {
+    backgroundColor: THEME.colors.accent.indigo,
+    borderColor: THEME.colors.accent.indigo
+  },
+  statusPillText: {
+    fontSize: THEME.typography.fontSize.xs,
+    color: THEME.colors.text.secondary,
+    fontWeight: '600'
+  },
+  statusPillTextActive: {
+    color: '#FFF',
+    fontWeight: '800'
+  },
+  editModalActions: {
+    flexDirection: 'row',
+    gap: THEME.spacing.md,
+    marginTop: THEME.spacing.md
   },
   reversalDialog: {
     backgroundColor: THEME.colors.background.card,

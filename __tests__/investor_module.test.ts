@@ -198,4 +198,28 @@ describe('Investor Module & Invariant Test Suite', () => {
       expect(bank.isPrimary).toBe(true);
     });
   });
+
+  describe('Investor Profile Updates & Editing', () => {
+    it('updates investor profile details and creates audit log', async () => {
+      const investorId = 'INV-00001';
+      const updated = await repo.updateInvestor(investorId, {
+        name: 'Rajesh Kumar Verma (Updated)',
+        email: 'rajesh.updated@example.com',
+        status: 'Active',
+        notes: 'HNI Account - Tier 1 VIP'
+      });
+
+      expect(updated.name).toBe('Rajesh Kumar Verma (Updated)');
+      expect(updated.email).toBe('rajesh.updated@example.com');
+      expect(updated.notes).toBe('HNI Account - Tier 1 VIP');
+
+      const details = await repo.getInvestorDetails(investorId);
+      expect(details.investor.name).toBe('Rajesh Kumar Verma (Updated)');
+
+      // Verify audit log
+      const auditLogs = await repo.getAuditLogs({ module: 'Investors' });
+      const editLog = auditLogs.find(a => a.action === 'INVESTOR_UPDATED' && a.recordId === investorId);
+      expect(editLog).toBeDefined();
+    });
+  });
 });
