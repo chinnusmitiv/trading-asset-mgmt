@@ -11,7 +11,8 @@ import {
   Modal,
   TextInput,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Linking
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
@@ -20,6 +21,8 @@ import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { CurrencyInput } from '../../components/common/CurrencyInput';
+import { PercentageInput } from '../../components/common/PercentageInput';
 import { ConfirmationDialog } from '../../components/common/ConfirmationDialog';
 import { LoadingState } from '../../components/common/LoadingState';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -29,14 +32,17 @@ import {
   InvestorBank,
   Investment,
   InvestorPayment,
-  InvestorDocument
+  InvestorDocument,
+  PaymentFrequency,
+  InvestmentStatus
 } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { maskBankAccount } from '../../utils/masking';
 import {
   calculateOutstandingPrincipal,
-  calculateInvestorProfitPaid
+  calculateInvestorProfitPaid,
+  calculateInvestorMonthlyReturn
 } from '../../utils/calculations';
 
 type TabKey = 'overview' | 'investments' | 'payments' | 'bank' | 'documents';
@@ -50,6 +56,7 @@ export const InvestorProfileScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [investor, setInvestor] = useState<Investor | null>(null);
   const [bank, setBank] = useState<InvestorBank | null>(null);
+  const [banks, setBanks] = useState<InvestorBank[]>([]);
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [payments, setPayments] = useState<InvestorPayment[]>([]);
   const [documents, setDocuments] = useState<InvestorDocument[]>([]);
@@ -69,6 +76,46 @@ export const InvestorProfileScreen: React.FC = () => {
   const [editLoading, setEditLoading] = useState(false);
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 
+  // Edit Investment Tranche Modal State
+  const [editTrancheModalVisible, setEditTrancheModalVisible] = useState(false);
+  const [selectedTranche, setSelectedTranche] = useState<Investment | null>(null);
+  const [trancheForm, setTrancheForm] = useState({
+    principalAmount: 5000000,
+    returnPercentage: 2.5,
+    paymentFrequency: 'Monthly' as PaymentFrequency,
+    status: 'Active' as InvestmentStatus,
+    maturityDate: '',
+    notes: ''
+  });
+  const [trancheEditLoading, setTrancheEditLoading] = useState(false);
+
+  // Bank Edit / Add Modal State
+  const [bankModalVisible, setBankModalVisible] = useState(false);
+  const [selectedBank, setSelectedBank] = useState<InvestorBank | null>(null);
+  const [bankForm, setBankForm] = useState({
+    accountHolderName: '',
+    bankName: '',
+    accountNumber: '',
+    ifscCode: '',
+    accountType: 'Savings' as 'Savings' | 'Current',
+    isPrimary: true
+  });
+  const [bankEditLoading, setBankEditLoading] = useState(false);
+  const [bankErrors, setBankErrors] = useState<Record<string, string>>({});
+
+  // Document Edit / Add Modal State
+  const [docModalVisible, setDocModalVisible] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<InvestorDocument | null>(null);
+  const [docForm, setDocForm] = useState({
+    documentName: '',
+    documentType: 'Agreement' as InvestorDocument['documentType'],
+    driveUrl: '',
+    expiryDate: '',
+    status: 'Valid' as InvestorDocument['status']
+  });
+  const [docEditLoading, setDocEditLoading] = useState(false);
+  const [docErrors, setDocErrors] = useState<Record<string, string>>({});
+
   // Confirmation modal state for marking payment as paid
   const [confirmPaymentModal, setConfirmPaymentModal] = useState<{
     visible: boolean;
@@ -82,14 +129,12 @@ export const InvestorProfileScreen: React.FC = () => {
     reason: string;
   }>({ visible: false, payment: null, reason: '' });
 
-  // Unmasked bank account view for Admin
-  const [showUnmaskedBank, setShowUnmaskedBank] = useState(false);
-
   const loadProfileData = useCallback(async () => {
     try {
       const details = await repository.getInvestorDetails(investorId);
       setInvestor(details.investor);
       setBank(details.bank || null);
+      setBanks(details.banks || (details.bank ? [details.bank] : []));
       setInvestments(details.investments);
       setPayments(details.payments);
       setDocuments(details.documents || []);
@@ -116,7 +161,7 @@ export const InvestorProfileScreen: React.FC = () => {
     .filter(inv => inv.status === 'Active')
     .reduce((sum, inv) => sum + inv.monthlyReturn, 0);
 
-  // Open Edit Modal
+  // Open Edit Profile Modal
   const handleOpenEdit = () => {
     if (!investor) return;
     setEditForm({
@@ -131,7 +176,7 @@ export const InvestorProfileScreen: React.FC = () => {
     setEditModalVisible(true);
   };
 
-  // Save Edit Changes
+  // Save Edit Profile Changes
   const handleSaveEdit = async () => {
     const errors: Record<string, string> = {};
     if (!editForm.name.trim()) errors.name = 'Full legal name is required';
@@ -162,6 +207,233 @@ export const InvestorProfileScreen: React.FC = () => {
     } finally {
       setEditLoading(false);
     }
+  };
+
+  // Open Edit Tranche Modal
+  const handleOpenEditTranche = (tranche: Investment) => {
+    setSelectedTranche(tranche);
+    setTrancheForm({
+      principalAmount: tranche.principalAmount,
+      returnPercentage: tranche.returnPercentage,
+      paymentFrequency: tranche.paymentFrequency,
+      status: tranche.status,
+      maturityDate: tranche.maturityDate || '',
+      notes: tranche.notes || ''
+    });
+    setEditTrancheModalVisible(true);
+  };
+
+  // Live calculation for tranche edit modal
+  const liveTrancheMonthlyPayout = calculateInvestorMonthlyReturn(
+    trancheForm.principalAmount,
+    trancheForm.returnPercentage,
+    trancheForm.paymentFrequency
+  );
+
+  // Save Edit Tranche Changes
+  const handleSaveEditTranche = async () => {
+    if (!selectedTranche) return;
+    if (trancheForm.principalAmount <= 0) {
+      Alert.alert('Validation Error', 'Principal amount must be greater than zero.');
+      return;
+    }
+    if (trancheForm.returnPercentage < 0 || trancheForm.returnPercentage > 100) {
+      Alert.alert('Validation Error', 'Return percentage must be between 0% and 100%.');
+      return;
+    }
+
+    setTrancheEditLoading(true);
+    try {
+      await repository.updateInvestment(selectedTranche.investmentId, {
+        principalAmount: trancheForm.principalAmount,
+        returnPercentage: trancheForm.returnPercentage,
+        paymentFrequency: trancheForm.paymentFrequency,
+        status: trancheForm.status,
+        maturityDate: trancheForm.maturityDate.trim() || undefined,
+        notes: trancheForm.notes.trim() || undefined
+      });
+      setEditTrancheModalVisible(false);
+      loadProfileData();
+      Alert.alert(
+        'Tranche Updated',
+        `Tranche ${selectedTranche.investmentId} updated with ${formatCurrency(liveTrancheMonthlyPayout)}/month expected payout.`
+      );
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update investment tranche.');
+    } finally {
+      setTrancheEditLoading(false);
+    }
+  };
+
+  // Open Add Bank Modal
+  const handleOpenAddBank = () => {
+    setSelectedBank(null);
+    setBankForm({
+      accountHolderName: investor?.name || '',
+      bankName: '',
+      accountNumber: '',
+      ifscCode: '',
+      accountType: 'Savings',
+      isPrimary: banks.length === 0
+    });
+    setBankErrors({});
+    setBankModalVisible(true);
+  };
+
+  // Open Edit Bank Modal
+  const handleOpenEditBank = (b: InvestorBank) => {
+    setSelectedBank(b);
+    setBankForm({
+      accountHolderName: b.accountHolderName,
+      bankName: b.bankName,
+      accountNumber: b.accountNumberMasked,
+      ifscCode: b.ifscCode,
+      accountType: b.accountType,
+      isPrimary: b.isPrimary
+    });
+    setBankErrors({});
+    setBankModalVisible(true);
+  };
+
+  // Set Bank as Primary
+  const handleSetPrimaryBank = async (b: InvestorBank) => {
+    try {
+      await repository.updateBankDetails(b.bankId, { isPrimary: true });
+      loadProfileData();
+      Alert.alert('Primary Bank Updated', `${b.bankName} (${b.accountNumberMasked}) is now set as primary disbursement account.`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update primary bank');
+    }
+  };
+
+  // Save Bank Details (Create or Edit)
+  const handleSaveBank = async () => {
+    const errs: Record<string, string> = {};
+    if (!bankForm.accountHolderName.trim()) errs.accountHolderName = 'Beneficiary name is required';
+    if (!bankForm.bankName.trim()) errs.bankName = 'Bank name is required';
+    if (!bankForm.accountNumber.trim()) errs.accountNumber = 'Account number is required';
+    if (!bankForm.ifscCode.trim()) errs.ifscCode = 'IFSC code is required';
+
+    if (Object.keys(errs).length > 0) {
+      setBankErrors(errs);
+      return;
+    }
+
+    setBankEditLoading(true);
+    try {
+      if (selectedBank) {
+        // Edit existing bank
+        await repository.updateBankDetails(selectedBank.bankId, {
+          accountHolderName: bankForm.accountHolderName.trim(),
+          bankName: bankForm.bankName.trim(),
+          accountNumberMasked: maskBankAccount(bankForm.accountNumber.trim()),
+          ifscCode: bankForm.ifscCode.trim().toUpperCase(),
+          accountType: bankForm.accountType,
+          isPrimary: bankForm.isPrimary
+        });
+        Alert.alert('Bank Updated', `Bank details for ${bankForm.bankName} updated.`);
+      } else {
+        // Add new bank
+        await repository.addBankDetails({
+          investorId,
+          accountHolderName: bankForm.accountHolderName.trim(),
+          bankName: bankForm.bankName.trim(),
+          accountNumberMasked: maskBankAccount(bankForm.accountNumber.trim()),
+          ifscCode: bankForm.ifscCode.trim().toUpperCase(),
+          accountType: bankForm.accountType,
+          isPrimary: bankForm.isPrimary
+        });
+        Alert.alert('Bank Added', `New bank account added for ${investor?.name}.`);
+      }
+      setBankModalVisible(false);
+      loadProfileData();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to save bank details');
+    } finally {
+      setBankEditLoading(false);
+    }
+  };
+
+  // Open Add Document Modal
+  const handleOpenAddDoc = () => {
+    setSelectedDoc(null);
+    setDocForm({
+      documentName: '',
+      documentType: 'Agreement',
+      driveUrl: '',
+      expiryDate: '',
+      status: 'Valid'
+    });
+    setDocErrors({});
+    setDocModalVisible(true);
+  };
+
+  // Open Edit Document Modal
+  const handleOpenEditDoc = (d: InvestorDocument) => {
+    setSelectedDoc(d);
+    setDocForm({
+      documentName: d.documentName,
+      documentType: d.documentType,
+      driveUrl: d.driveUrl || '',
+      expiryDate: d.expiryDate || '',
+      status: d.status
+    });
+    setDocErrors({});
+    setDocModalVisible(true);
+  };
+
+  // Save Document (Create or Edit)
+  const handleSaveDoc = async () => {
+    if (!docForm.documentName.trim()) {
+      setDocErrors({ documentName: 'Document title is required' });
+      return;
+    }
+
+    setDocEditLoading(true);
+    try {
+      if (selectedDoc) {
+        // Edit existing document
+        await repository.updateInvestorDocument(selectedDoc.documentId, {
+          documentName: docForm.documentName.trim(),
+          documentType: docForm.documentType,
+          driveUrl: docForm.driveUrl.trim() || undefined,
+          expiryDate: docForm.expiryDate.trim() || undefined,
+          status: docForm.status
+        });
+        Alert.alert('Document Updated', `Document "${docForm.documentName}" updated successfully.`);
+      } else {
+        // Add new document
+        await repository.addInvestorDocument({
+          entityType: 'Investor',
+          entityId: investorId,
+          documentName: docForm.documentName.trim(),
+          documentType: docForm.documentType,
+          driveUrl: docForm.driveUrl.trim() || undefined,
+          uploadedDate: new Date().toISOString().split('T')[0],
+          expiryDate: docForm.expiryDate.trim() || undefined,
+          status: docForm.status,
+          createdBy: user?.userId || 'USR-00001'
+        });
+        Alert.alert('Document Cataloged', `New document attached to ${investor?.name}.`);
+      }
+      setDocModalVisible(false);
+      loadProfileData();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to save document');
+    } finally {
+      setDocEditLoading(false);
+    }
+  };
+
+  // Open Document URL
+  const handleOpenDocUrl = (url?: string) => {
+    if (!url) {
+      Alert.alert('Notice', 'No Google Drive link attached to this document.');
+      return;
+    }
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Error', 'Unable to open document link.');
+    });
   };
 
   // Handle Mark Payment as Paid
@@ -239,7 +511,7 @@ export const InvestorProfileScreen: React.FC = () => {
             { key: 'overview', label: 'Overview' },
             { key: 'investments', label: `Tranches (${investments.length})` },
             { key: 'payments', label: `Payments (${payments.length})` },
-            { key: 'bank', label: 'Bank Details' },
+            { key: 'bank', label: `Banks (${banks.length})` },
             { key: 'documents', label: `Docs (${documents.length})` }
           ].map(tab => (
             <TouchableOpacity
@@ -405,7 +677,17 @@ export const InvestorProfileScreen: React.FC = () => {
                         Deposited: {formatDate(inv.investmentDate)} • Maturity: {formatDate(inv.maturityDate)}
                       </Text>
                     </View>
-                    <StatusBadge status={inv.status} size="sm" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <StatusBadge status={inv.status} size="sm" />
+                      {user?.role !== 'Staff' && (
+                        <TouchableOpacity
+                          style={styles.inlineEditBtn}
+                          onPress={() => handleOpenEditTranche(inv)}
+                        >
+                          <Text style={styles.inlineEditBtnText}>✏️ Edit</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
 
                   <View style={styles.divider} />
@@ -537,71 +819,100 @@ export const InvestorProfileScreen: React.FC = () => {
           </View>
         )}
 
-        {/* TAB 4: BANK DETAILS */}
+        {/* TAB 4: BANK DETAILS (MULTIPLE ACCOUNTS) */}
         {activeTab === 'bank' && (
           <View style={styles.tabContent}>
-            {bank ? (
-              <View style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View>
-                    <Text style={styles.cardTitle}>{bank.bankName}</Text>
-                    <Text style={styles.cardSub}>Account Type: {bank.accountType}</Text>
-                  </View>
-                  <StatusBadge status={bank.isPrimary ? 'Active' : 'Inactive'} size="sm" />
-                </View>
+            <View style={styles.tabActionsHeader}>
+              <Text style={styles.tabCountText}>{banks.length} Linked Bank Accounts</Text>
+              {user?.role !== 'Staff' && (
+                <Button
+                  title="+ Add Bank Account"
+                  size="sm"
+                  onPress={handleOpenAddBank}
+                />
+              )}
+            </View>
 
-                <View style={styles.divider} />
-
-                <View style={styles.contactGrid}>
-                  <View style={styles.contactItem}>
-                    <Text style={styles.contactLabel}>Beneficiary Name</Text>
-                    <Text style={styles.contactValue}>{bank.accountHolderName}</Text>
-                  </View>
-                  <View style={styles.contactItem}>
-                    <Text style={styles.contactLabel}>Account Number</Text>
-                    <Text style={styles.contactValue}>
-                      {bank.accountNumberMasked}
-                    </Text>
-                  </View>
-                  <View style={styles.contactItem}>
-                    <Text style={styles.contactLabel}>IFSC Code</Text>
-                    <Text style={styles.contactValue}>{bank.ifscCode}</Text>
-                  </View>
-                  <View style={styles.contactItem}>
-                    <Text style={styles.contactLabel}>Account Type</Text>
-                    <Text style={styles.contactValue}>{bank.accountType}</Text>
-                  </View>
-                </View>
-
-                {/* Admin Unmask Button */}
-                {user?.role === 'Admin' ? (
-                  <TouchableOpacity
-                    style={styles.unmaskToggle}
-                    onPress={() => setShowUnmaskedBank(!showUnmaskedBank)}
-                  >
-                    <Text style={styles.unmaskToggleText}>
-                      {showUnmaskedBank ? '🔒 Hide Sensitive Account Number' : '👁️ Reveal Full Account Number (Admin)'}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ) : (
+            {banks.length === 0 ? (
               <EmptyState
                 icon="🏦"
                 title="No Bank Details Attached"
                 message="Attach a bank account to enable seamless profit and principal payouts."
                 actionLabel="+ Add Bank"
-                onAction={() => navigation.navigate('AddBankDetails', { investorId })}
+                onAction={handleOpenAddBank}
               />
+            ) : (
+              banks.map(b => (
+                <View key={b.bankId} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View>
+                      <Text style={styles.cardTitle}>{b.bankName}</Text>
+                      <Text style={styles.cardSub}>Account Type: {b.accountType}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <StatusBadge status={b.isPrimary ? 'Active' : 'Inactive'} size="sm" />
+                      {user?.role !== 'Staff' && (
+                        <TouchableOpacity
+                          style={styles.inlineEditBtn}
+                          onPress={() => handleOpenEditBank(b)}
+                        >
+                          <Text style={styles.inlineEditBtnText}>✏️ Edit</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  <View style={styles.contactGrid}>
+                    <View style={styles.contactItem}>
+                      <Text style={styles.contactLabel}>Beneficiary Name</Text>
+                      <Text style={styles.contactValue}>{b.accountHolderName}</Text>
+                    </View>
+                    <View style={styles.contactItem}>
+                      <Text style={styles.contactLabel}>Account Number</Text>
+                      <Text style={styles.contactValue}>
+                        {b.accountNumberMasked}
+                      </Text>
+                    </View>
+                    <View style={styles.contactItem}>
+                      <Text style={styles.contactLabel}>IFSC Code</Text>
+                      <Text style={styles.contactValue}>{b.ifscCode}</Text>
+                    </View>
+                    <View style={styles.contactItem}>
+                      <Text style={styles.contactLabel}>Account Role</Text>
+                      <Text style={[styles.contactValue, b.isPrimary && { color: THEME.colors.accent.emerald, fontWeight: '700' }]}>
+                        {b.isPrimary ? '⭐ Primary Payout Account' : 'Secondary Account'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {!b.isPrimary && user?.role !== 'Staff' && (
+                    <TouchableOpacity
+                      style={styles.setPrimaryBtn}
+                      onPress={() => handleSetPrimaryBank(b)}
+                    >
+                      <Text style={styles.setPrimaryBtnText}>⭐ Set as Primary Disbursement Account</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))
             )}
           </View>
         )}
 
-        {/* TAB 5: DOCUMENTS */}
+        {/* TAB 5: DOCUMENTS (AGREEMENTS & KYC) */}
         {activeTab === 'documents' && (
           <View style={styles.tabContent}>
             <View style={styles.tabActionsHeader}>
               <Text style={styles.tabCountText}>{documents.length} KYC & Agreement Files</Text>
+              {user?.role !== 'Staff' && (
+                <Button
+                  title="+ Add Document"
+                  size="sm"
+                  onPress={handleOpenAddDoc}
+                />
+              )}
             </View>
 
             {documents.length === 0 ? (
@@ -609,6 +920,8 @@ export const InvestorProfileScreen: React.FC = () => {
                 icon="📁"
                 title="No Documents Attached"
                 message="Agreements, KYC cards, and signed mandates on Google Drive will be cataloged here."
+                actionLabel="+ Add Document"
+                onAction={handleOpenAddDoc}
               />
             ) : (
               documents.map(doc => (
@@ -620,8 +933,48 @@ export const InvestorProfileScreen: React.FC = () => {
                         Type: {doc.documentType} • Uploaded: {formatDate(doc.uploadedDate)}
                       </Text>
                     </View>
-                    <StatusBadge status={doc.status} size="sm" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <StatusBadge status={doc.status} size="sm" />
+                      {user?.role !== 'Staff' && (
+                        <TouchableOpacity
+                          style={styles.inlineEditBtn}
+                          onPress={() => handleOpenEditDoc(doc)}
+                        >
+                          <Text style={styles.inlineEditBtnText}>✏️ Edit</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
+
+                  <View style={styles.divider} />
+
+                  <View style={styles.contactGrid}>
+                    <View style={styles.contactItem}>
+                      <Text style={styles.contactLabel}>Category</Text>
+                      <Text style={styles.contactValue}>{doc.documentType.replace('_', ' ')}</Text>
+                    </View>
+                    {doc.expiryDate ? (
+                      <View style={styles.contactItem}>
+                        <Text style={styles.contactLabel}>Validity Expiry</Text>
+                        <Text style={styles.contactValue}>{formatDate(doc.expiryDate)}</Text>
+                      </View>
+                    ) : null}
+                    <View style={styles.contactItem}>
+                      <Text style={styles.contactLabel}>Document Status</Text>
+                      <Text style={[styles.contactValue, { color: doc.status === 'Valid' ? THEME.colors.accent.emerald : THEME.colors.accent.amber, fontWeight: '700' }]}>
+                        {doc.status}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {doc.driveUrl ? (
+                    <TouchableOpacity
+                      style={styles.viewDocLinkBtn}
+                      onPress={() => handleOpenDocUrl(doc.driveUrl)}
+                    >
+                      <Text style={styles.viewDocLinkText}>🔗 Open Google Drive Document ›</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               ))
             )}
@@ -629,7 +982,7 @@ export const InvestorProfileScreen: React.FC = () => {
         )}
       </ScrollView>
 
-      {/* EDIT INVESTOR MODAL */}
+      {/* EDIT INVESTOR PROFILE MODAL */}
       <Modal
         visible={editModalVisible}
         transparent
@@ -725,6 +1078,365 @@ export const InvestorProfileScreen: React.FC = () => {
                   variant="primary"
                   loading={editLoading}
                   onPress={handleSaveEdit}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* EDIT INVESTMENT TRANCHE MODAL */}
+      <Modal
+        visible={editTrancheModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditTrancheModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.editModalContainer}>
+            <View style={styles.editModalHeader}>
+              <View>
+                <Text style={styles.editModalTitle}>Edit Investment Tranche</Text>
+                <Text style={styles.editModalSub}>{selectedTranche?.investmentId}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setEditTrancheModalVisible(false)}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.editModalScroll} keyboardShouldPersistTaps="handled">
+              {/* Real-time Recalculated Return Banner */}
+              <View style={styles.trancheBannerBox}>
+                <Text style={styles.trancheBannerLabel}>UPDATED MONTHLY PAYOUT</Text>
+                <Text style={styles.trancheBannerValue}>{formatCurrency(liveTrancheMonthlyPayout)}</Text>
+                <Text style={styles.trancheBannerSub}>
+                  {trancheForm.returnPercentage}% / month on {formatCurrency(trancheForm.principalAmount)}
+                </Text>
+              </View>
+
+              <CurrencyInput
+                label="Principal Capital Amount (₹) *"
+                value={trancheForm.principalAmount}
+                onChangeValue={val => setTrancheForm(prev => ({ ...prev, principalAmount: val }))}
+              />
+
+              <PercentageInput
+                label="Agreed Monthly Return Rate (% / month) *"
+                value={trancheForm.returnPercentage}
+                onChangeValue={val => setTrancheForm(prev => ({ ...prev, returnPercentage: val }))}
+              />
+
+              <Text style={styles.inputLabel}>Payment Frequency</Text>
+              <View style={styles.statusPillsRow}>
+                {(['Monthly', 'Quarterly', 'Annual', 'On_Maturity'] as const).map(freq => (
+                  <TouchableOpacity
+                    key={freq}
+                    style={[
+                      styles.statusPill,
+                      trancheForm.paymentFrequency === freq && styles.statusPillActive
+                    ]}
+                    onPress={() => setTrancheForm(prev => ({ ...prev, paymentFrequency: freq }))}
+                  >
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        trancheForm.paymentFrequency === freq && styles.statusPillTextActive
+                      ]}
+                    >
+                      {freq === 'On_Maturity' ? 'Maturity' : freq}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.inputLabel}>Tranche Status</Text>
+              <View style={styles.statusPillsRow}>
+                {(['Active', 'Matured', 'Closed', 'Suspended'] as const).map(st => (
+                  <TouchableOpacity
+                    key={st}
+                    style={[
+                      styles.statusPill,
+                      trancheForm.status === st && styles.statusPillActive
+                    ]}
+                    onPress={() => setTrancheForm(prev => ({ ...prev, status: st }))}
+                  >
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        trancheForm.status === st && styles.statusPillTextActive
+                      ]}
+                    >
+                      {st}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Input
+                label="Maturity Date (YYYY-MM-DD)"
+                value={trancheForm.maturityDate}
+                onChangeText={text => setTrancheForm(prev => ({ ...prev, maturityDate: text }))}
+                placeholder="2027-09-02"
+              />
+
+              <Input
+                label="Tranche Notes / Policy Ref"
+                value={trancheForm.notes}
+                onChangeText={text => setTrancheForm(prev => ({ ...prev, notes: text }))}
+                placeholder="e.g. Additional allocation, rollover tranche"
+              />
+
+              <View style={styles.editModalActions}>
+                <Button
+                  title="Cancel"
+                  variant="secondary"
+                  onPress={() => setEditTrancheModalVisible(false)}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title="Save Tranche Changes"
+                  variant="primary"
+                  loading={trancheEditLoading}
+                  onPress={handleSaveEditTranche}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* EDIT / ADD BANK DETAILS MODAL */}
+      <Modal
+        visible={bankModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setBankModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.editModalContainer}>
+            <View style={styles.editModalHeader}>
+              <View>
+                <Text style={styles.editModalTitle}>
+                  {selectedBank ? 'Edit Bank Account' : 'Add Bank Account'}
+                </Text>
+                <Text style={styles.editModalSub}>
+                  {selectedBank ? selectedBank.bankId : `Investor: ${investor?.name}`}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setBankModalVisible(false)}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.editModalScroll} keyboardShouldPersistTaps="handled">
+              <Input
+                label="Beneficiary Account Holder Name *"
+                value={bankForm.accountHolderName}
+                onChangeText={text => setBankForm(prev => ({ ...prev, accountHolderName: text }))}
+                placeholder="e.g. Ramesh Chandra Verma"
+                error={bankErrors.accountHolderName}
+              />
+
+              <Input
+                label="Bank Name *"
+                value={bankForm.bankName}
+                onChangeText={text => setBankForm(prev => ({ ...prev, bankName: text }))}
+                placeholder="e.g. HDFC Bank, ICICI Bank, Axis Bank"
+                error={bankErrors.bankName}
+              />
+
+              <Input
+                label="Bank Account Number *"
+                value={bankForm.accountNumber}
+                onChangeText={text => setBankForm(prev => ({ ...prev, accountNumber: text }))}
+                placeholder="e.g. 50100234564582"
+                keyboardType="number-pad"
+                error={bankErrors.accountNumber}
+              />
+
+              <Input
+                label="IFSC Code *"
+                value={bankForm.ifscCode}
+                onChangeText={text => setBankForm(prev => ({ ...prev, ifscCode: text.toUpperCase() }))}
+                placeholder="e.g. HDFC0001234"
+                autoCapitalize="characters"
+                error={bankErrors.ifscCode}
+              />
+
+              <Text style={styles.inputLabel}>Account Type</Text>
+              <View style={styles.statusPillsRow}>
+                {(['Savings', 'Current'] as const).map(type => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.statusPill,
+                      bankForm.accountType === type && styles.statusPillActive
+                    ]}
+                    onPress={() => setBankForm(prev => ({ ...prev, accountType: type }))}
+                  >
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        bankForm.accountType === type && styles.statusPillTextActive
+                      ]}
+                    >
+                      {type} Account
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.primaryToggleCard,
+                  bankForm.isPrimary && styles.primaryToggleCardActive
+                ]}
+                onPress={() => setBankForm(prev => ({ ...prev, isPrimary: !prev.isPrimary }))}
+              >
+                <Text style={styles.primaryToggleIcon}>{bankForm.isPrimary ? '⭐' : '☆'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.primaryToggleTitle}>Primary Disbursement Account</Text>
+                  <Text style={styles.primaryToggleSub}>
+                    Default account for automated monthly profit distributions
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.editModalActions}>
+                <Button
+                  title="Cancel"
+                  variant="secondary"
+                  onPress={() => setBankModalVisible(false)}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title={selectedBank ? 'Save Bank Changes' : 'Attach Bank Account'}
+                  variant="primary"
+                  loading={bankEditLoading}
+                  onPress={handleSaveBank}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* EDIT / ADD DOCUMENT MODAL */}
+      <Modal
+        visible={docModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDocModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.editModalContainer}>
+            <View style={styles.editModalHeader}>
+              <View>
+                <Text style={styles.editModalTitle}>
+                  {selectedDoc ? 'Edit KYC / Document' : 'Attach New Document'}
+                </Text>
+                <Text style={styles.editModalSub}>
+                  {selectedDoc ? selectedDoc.documentId : `Investor: ${investor?.name}`}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setDocModalVisible(false)}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.editModalScroll} keyboardShouldPersistTaps="handled">
+              <Input
+                label="Document Title / File Name *"
+                value={docForm.documentName}
+                onChangeText={text => setDocForm(prev => ({ ...prev, documentName: text }))}
+                placeholder="e.g. Master Capital Agreement 2026"
+                error={docErrors.documentName}
+              />
+
+              <Text style={styles.inputLabel}>Document Classification Type</Text>
+              <View style={styles.docTypeGrid}>
+                {(['Agreement', 'KYC', 'Bank_Proof', 'Policy', 'Investment_Doc', 'Other'] as const).map(type => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.docTypePill,
+                      docForm.documentType === type && styles.statusPillActive
+                    ]}
+                    onPress={() => setDocForm(prev => ({ ...prev, documentType: type }))}
+                  >
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        docForm.documentType === type && styles.statusPillTextActive
+                      ]}
+                    >
+                      {type.replace('_', ' ')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Input
+                label="Google Drive Link / URL"
+                value={docForm.driveUrl}
+                onChangeText={text => setDocForm(prev => ({ ...prev, driveUrl: text }))}
+                placeholder="https://drive.google.com/file/d/..."
+              />
+
+              <Input
+                label="Expiry / Renewal Date (Optional)"
+                value={docForm.expiryDate}
+                onChangeText={text => setDocForm(prev => ({ ...prev, expiryDate: text }))}
+                placeholder="YYYY-MM-DD (e.g. 2028-09-02)"
+              />
+
+              <Text style={styles.inputLabel}>Document Status</Text>
+              <View style={styles.statusPillsRow}>
+                {(['Valid', 'Expiring', 'Expired', 'Revoked'] as const).map(st => (
+                  <TouchableOpacity
+                    key={st}
+                    style={[
+                      styles.statusPill,
+                      docForm.status === st && styles.statusPillActive
+                    ]}
+                    onPress={() => setDocForm(prev => ({ ...prev, status: st }))}
+                  >
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        docForm.status === st && styles.statusPillTextActive
+                      ]}
+                    >
+                      {st}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.editModalActions}>
+                <Button
+                  title="Cancel"
+                  variant="secondary"
+                  onPress={() => setDocModalVisible(false)}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title={selectedDoc ? 'Save Document Changes' : 'Catalog Document'}
+                  variant="primary"
+                  loading={docEditLoading}
+                  onPress={handleSaveDoc}
                   style={{ flex: 1 }}
                 />
               </View>
@@ -1029,16 +1741,33 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 10
   },
-  unmaskToggle: {
-    marginTop: THEME.spacing.md,
-    padding: THEME.spacing.sm,
+  setPrimaryBtn: {
+    marginTop: 10,
+    paddingVertical: 8,
     backgroundColor: THEME.colors.background.cardElevated,
-    borderRadius: THEME.borderRadius.sm,
+    borderRadius: THEME.borderRadius.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.accent.emerald,
     alignItems: 'center'
   },
-  unmaskToggleText: {
-    fontSize: THEME.typography.fontSize.xs,
-    fontWeight: '600',
+  setPrimaryBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.accent.emerald
+  },
+  viewDocLinkBtn: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: THEME.colors.background.cardElevated,
+    borderRadius: THEME.borderRadius.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.accent.indigo,
+    alignItems: 'center'
+  },
+  viewDocLinkText: {
+    fontSize: 11,
+    fontWeight: '700',
     color: THEME.colors.accent.indigo
   },
   modalOverlay: {
@@ -1069,6 +1798,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: THEME.colors.text.primary
   },
+  editModalSub: {
+    fontSize: THEME.typography.fontSize.xs,
+    color: THEME.colors.accent.indigo,
+    fontWeight: '700',
+    marginTop: 2
+  },
   modalCloseIcon: {
     fontSize: 18,
     fontWeight: '700',
@@ -1078,6 +1813,31 @@ const styles = StyleSheet.create({
   editModalScroll: {
     paddingBottom: THEME.spacing.md,
     gap: THEME.spacing.sm
+  },
+  trancheBannerBox: {
+    backgroundColor: THEME.colors.background.cardElevated,
+    borderRadius: THEME.borderRadius.lg,
+    padding: THEME.spacing.md,
+    alignItems: 'center',
+    marginBottom: THEME.spacing.sm,
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border
+  },
+  trancheBannerLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: THEME.colors.text.muted,
+    letterSpacing: 0.8
+  },
+  trancheBannerValue: {
+    fontSize: THEME.typography.fontSize.xxl,
+    fontWeight: '800',
+    color: THEME.colors.accent.emerald,
+    marginVertical: 2
+  },
+  trancheBannerSub: {
+    fontSize: THEME.typography.fontSize.xs,
+    color: THEME.colors.text.secondary
   },
   statusPillsRow: {
     flexDirection: 'row',
@@ -1098,13 +1858,55 @@ const styles = StyleSheet.create({
     borderColor: THEME.colors.accent.indigo
   },
   statusPillText: {
-    fontSize: THEME.typography.fontSize.xs,
+    fontSize: 11,
     color: THEME.colors.text.secondary,
     fontWeight: '600'
   },
   statusPillTextActive: {
     color: '#FFF',
     fontWeight: '800'
+  },
+  docTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: THEME.spacing.sm
+  },
+  docTypePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: THEME.borderRadius.md,
+    backgroundColor: THEME.colors.background.cardElevated,
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border
+  },
+  primaryToggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: THEME.colors.background.cardElevated,
+    padding: THEME.spacing.md,
+    borderRadius: THEME.borderRadius.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border,
+    marginVertical: 6
+  },
+  primaryToggleCardActive: {
+    borderColor: THEME.colors.accent.emerald,
+    backgroundColor: 'rgba(16, 185, 129, 0.08)'
+  },
+  primaryToggleIcon: {
+    fontSize: 20
+  },
+  primaryToggleTitle: {
+    fontSize: THEME.typography.fontSize.xs,
+    fontWeight: '700',
+    color: THEME.colors.text.primary
+  },
+  primaryToggleSub: {
+    fontSize: 10,
+    color: THEME.colors.text.muted,
+    marginTop: 2
   },
   editModalActions: {
     flexDirection: 'row',

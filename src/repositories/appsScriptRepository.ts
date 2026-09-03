@@ -105,6 +105,12 @@ export class AppsScriptRepository
     return res.data;
   }
 
+  async updateInvestment(investmentId: string, fields: Partial<Investment>): Promise<Investment> {
+    const res = await this.client.request<Investment>('investments.update', { investmentId, fields });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
   async recordPayment(data: Omit<InvestorPayment, 'paymentId' | 'createdAt'>, requestId?: string): Promise<InvestorPayment> {
     const res = await this.client.request<InvestorPayment>('payments.create', data, requestId);
     if (!res.success || !res.data) throw new Error(res.message);
@@ -129,8 +135,26 @@ export class AppsScriptRepository
     return res.data;
   }
 
+  async updateBankDetails(bankId: string, fields: Partial<InvestorBank>): Promise<InvestorBank> {
+    const res = await this.client.request<InvestorBank>('bank.update', { bankId, fields });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
   async getInvestorDocuments(investorId: string): Promise<InvestorDocument[]> {
     const res = await this.client.request<InvestorDocument[]>('documents.list', { entityId: investorId });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async addInvestorDocument(data: Omit<InvestorDocument, 'documentId'>): Promise<InvestorDocument> {
+    const res = await this.client.request<InvestorDocument>('documents.create', data);
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async updateInvestorDocument(documentId: string, fields: Partial<InvestorDocument>): Promise<InvestorDocument> {
+    const res = await this.client.request<InvestorDocument>('documents.update', { documentId, fields });
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
   }

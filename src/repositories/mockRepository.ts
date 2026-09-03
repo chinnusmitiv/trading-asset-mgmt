@@ -36,7 +36,8 @@ import {
   calculateCompanyShare,
   calculateROI,
   calculateNetSalary,
-  calculateCompanyNetProfit
+  calculateCompanyNetProfit,
+  calculateInvestorMonthlyReturn
 } from '../utils/calculations';
 
 export class MockRepository
@@ -204,11 +205,12 @@ export class MockRepository
   async getInvestorDetails(investorId: string) {
     const investor = this.investors.find(i => i.investorId === investorId);
     if (!investor) throw new Error(`Investor ${investorId} not found`);
-    const bank = this.banks.find(b => b.investorId === investorId);
+    const investorBanks = this.banks.filter(b => b.investorId === investorId);
+    const primaryBank = investorBanks.find(b => b.isPrimary) || investorBanks[0];
     const tranches = this.investments.filter(i => i.investorId === investorId);
     const invPayments = this.payments.filter(p => p.investorId === investorId);
     const invDocs = this.documents.filter(d => d.entityId === investorId);
-    return { investor, bank, investments: tranches, payments: invPayments, documents: invDocs };
+    return { investor, bank: primaryBank, banks: investorBanks, investments: tranches, payments: invPayments, documents: invDocs };
   }
 
   async createInvestor(data: Omit<Investor, 'investorId' | 'createdAt' | 'updatedAt'>): Promise<Investor> {
@@ -252,6 +254,26 @@ export class MockRepository
     this.investments.push(newInvestment);
     await this.logEvent('INVESTMENT_CREATED', 'Investors', newId, null, newInvestment, 'Added investment tranche');
     return newInvestment;
+  }
+
+  async updateInvestment(investmentId: string, fields: Partial<Investment>): Promise<Investment> {
+    const idx = this.investments.findIndex(i => i.investmentId === investmentId);
+    if (idx === -1) throw new Error(`Investment tranche ${investmentId} not found`);
+    const oldVal = { ...this.investments[idx] };
+
+    const principal = fields.principalAmount !== undefined ? fields.principalAmount : this.investments[idx].principalAmount;
+    const rate = fields.returnPercentage !== undefined ? fields.returnPercentage : this.investments[idx].returnPercentage;
+    const freq = fields.paymentFrequency !== undefined ? fields.paymentFrequency : this.investments[idx].paymentFrequency;
+    const computedMonthlyReturn = calculateInvestorMonthlyReturn(principal, rate, freq);
+
+    this.investments[idx] = {
+      ...this.investments[idx],
+      ...fields,
+      monthlyReturn: computedMonthlyReturn,
+      updatedAt: new Date().toISOString()
+    };
+    await this.logEvent('INVESTMENT_UPDATED', 'Investors', investmentId, oldVal, this.investments[idx], 'Updated investment tranche');
+    return this.investments[idx];
   }
 
   async recordPayment(data: Omit<InvestorPayment, 'paymentId' | 'createdAt'>, requestId?: string): Promise<InvestorPayment> {
@@ -346,8 +368,53 @@ export class MockRepository
     return newBank;
   }
 
+  async updateBankDetails(bankId: string, fields: Partial<InvestorBank>): Promise<InvestorBank> {
+    const idx = this.banks.findIndex(b => b.bankId === bankId);
+    if (idx === -1) throw new Error(`Bank details ${bankId} not found`);
+    const oldVal = { ...this.banks[idx] };
+    const investorId = this.banks[idx].investorId;
+
+    if (fields.isPrimary) {
+      this.banks.forEach(b => {
+        if (b.investorId === investorId) b.isPrimary = false;
+      });
+    }
+
+    this.banks[idx] = {
+      ...this.banks[idx],
+      ...fields
+    };
+
+    await this.logEvent('BANK_DETAILS_UPDATED', 'Investors', bankId, oldVal, this.banks[idx], `Updated bank details ${bankId}`);
+    return this.banks[idx];
+  }
+
   async getInvestorDocuments(investorId: string): Promise<InvestorDocument[]> {
     return this.documents.filter(d => d.entityId === investorId);
+  }
+
+  async addInvestorDocument(data: Omit<InvestorDocument, 'documentId'>): Promise<InvestorDocument> {
+    const seq = this.documents.length + 1;
+    const newId = `DOC-${('00000' + seq).slice(-5)}`;
+    const newDoc: InvestorDocument = {
+      ...data,
+      documentId: newId
+    };
+    this.documents.unshift(newDoc);
+    await this.logEvent('DOCUMENT_ADDED', 'Investors', newId, null, newDoc, `Uploaded document ${data.documentName}`);
+    return newDoc;
+  }
+
+  async updateInvestorDocument(documentId: string, fields: Partial<InvestorDocument>): Promise<InvestorDocument> {
+    const idx = this.documents.findIndex(d => d.documentId === documentId);
+    if (idx === -1) throw new Error(`Document ${documentId} not found`);
+    const oldVal = { ...this.documents[idx] };
+    this.documents[idx] = {
+      ...this.documents[idx],
+      ...fields
+    };
+    await this.logEvent('DOCUMENT_UPDATED', 'Investors', documentId, oldVal, this.documents[idx], `Updated document ${documentId}`);
+    return this.documents[idx];
   }
 
   // --- Trade Methods ---

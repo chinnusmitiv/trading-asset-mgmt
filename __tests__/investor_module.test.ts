@@ -196,6 +196,33 @@ describe('Investor Module & Invariant Test Suite', () => {
       expect(bank.bankId).toMatch(/^BNK-\d{5}$/);
       expect(bank.accountNumberMasked).toBe('XXXX XXXX 4582');
       expect(bank.isPrimary).toBe(true);
+
+      // Add a secondary bank account
+      const secondaryBank = await repo.addBankDetails({
+        investorId: 'INV-00001',
+        accountHolderName: 'Rajesh Kumar Verma',
+        bankName: 'ICICI Bank',
+        accountNumberMasked: 'XXXX XXXX 9912',
+        ifscCode: 'ICIC0000002',
+        accountType: 'Current',
+        isPrimary: false
+      });
+
+      const details = await repo.getInvestorDetails('INV-00001');
+      expect(details.banks.length).toBeGreaterThanOrEqual(2);
+      expect(details.bank?.bankName).toBe('Kotak Mahindra Bank');
+
+      // Edit secondary bank to make it primary
+      const updatedBank = await repo.updateBankDetails(secondaryBank.bankId, {
+        isPrimary: true,
+        bankName: 'ICICI Corporate Banking'
+      });
+
+      expect(updatedBank.isPrimary).toBe(true);
+      expect(updatedBank.bankName).toBe('ICICI Corporate Banking');
+
+      const refreshedDetails = await repo.getInvestorDetails('INV-00001');
+      expect(refreshedDetails.bank?.bankId).toBe(secondaryBank.bankId);
     });
   });
 
@@ -220,6 +247,55 @@ describe('Investor Module & Invariant Test Suite', () => {
       const auditLogs = await repo.getAuditLogs({ module: 'Investors' });
       const editLog = auditLogs.find(a => a.action === 'INVESTOR_UPDATED' && a.recordId === investorId);
       expect(editLog).toBeDefined();
+    });
+
+    it('updates an investment tranche and recalculates monthly return automatically', async () => {
+      const investmentId = 'INVEST-00001'; // Initially 1.00 Cr @ 2.5% = 2,50,000
+
+      const updated = await repo.updateInvestment(investmentId, {
+        principalAmount: 12000000, // 1.20 Cr
+        returnPercentage: 3.0 // 3.0%
+      });
+
+      expect(updated.principalAmount).toBe(12000000);
+      expect(updated.returnPercentage).toBe(3.0);
+      expect(updated.monthlyReturn).toBe(360000); // 1.20 Cr * 3.0% = 3,60,000
+
+      // Verify audit log
+      const auditLogs = await repo.getAuditLogs({ module: 'Investors' });
+      const trancheLog = auditLogs.find(a => a.action === 'INVESTMENT_UPDATED' && a.recordId === investmentId);
+      expect(trancheLog).toBeDefined();
+    });
+
+    it('attaches and updates investor documents and KYC files', async () => {
+      const investorId = 'INV-00001';
+      const newDoc = await repo.addInvestorDocument({
+        entityType: 'Investor',
+        entityId: investorId,
+        documentName: 'Master Investment Agreement 2026',
+        documentType: 'Agreement',
+        driveUrl: 'https://drive.google.com/file/d/sample-agreement',
+        uploadedDate: '2026-09-02',
+        expiryDate: '2028-09-02',
+        status: 'Valid',
+        createdBy: 'USR-00001'
+      });
+
+      expect(newDoc.documentId).toMatch(/^DOC-\d{5}$/);
+      expect(newDoc.documentName).toBe('Master Investment Agreement 2026');
+
+      // Update document
+      const updatedDoc = await repo.updateInvestorDocument(newDoc.documentId, {
+        documentName: 'Master Investment Agreement 2026 (Executed & Notarized)',
+        status: 'Valid'
+      });
+
+      expect(updatedDoc.documentName).toBe('Master Investment Agreement 2026 (Executed & Notarized)');
+
+      // Verify audit log
+      const auditLogs = await repo.getAuditLogs({ module: 'Investors' });
+      const docLog = auditLogs.find(a => a.action === 'DOCUMENT_UPDATED' && a.recordId === newDoc.documentId);
+      expect(docLog).toBeDefined();
     });
   });
 });

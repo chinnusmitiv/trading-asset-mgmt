@@ -30,6 +30,7 @@ export interface IInvestorRepository {
   getInvestorDetails(investorId: string): Promise<{
     investor: Investor;
     bank?: InvestorBank;
+    banks: InvestorBank[];
     investments: Investment[];
     payments: InvestorPayment[];
     documents?: InvestorDocument[];
@@ -37,11 +38,15 @@ export interface IInvestorRepository {
   createInvestor(investor: Omit<Investor, 'investorId' | 'createdAt' | 'updatedAt'>): Promise<Investor>;
   updateInvestor(investorId: string, fields: Partial<Investor>): Promise<Investor>;
   createInvestment(investment: Omit<Investment, 'investmentId' | 'createdAt' | 'updatedAt'>): Promise<Investment>;
+  updateInvestment(investmentId: string, fields: Partial<Investment>): Promise<Investment>;
   recordPayment(payment: Omit<InvestorPayment, 'paymentId' | 'createdAt'>, requestId?: string): Promise<InvestorPayment>;
   updatePaymentStatus(paymentId: string, status: InvestorPayment['status'], paymentReference?: string, requestId?: string): Promise<InvestorPayment>;
   reversePayment(paymentId: string, reason: string, requestId?: string): Promise<InvestorPayment>;
   addBankDetails(bank: Omit<InvestorBank, 'bankId' | 'createdAt'>): Promise<InvestorBank>;
+  updateBankDetails(bankId: string, fields: Partial<InvestorBank>): Promise<InvestorBank>;
   getInvestorDocuments(investorId: string): Promise<InvestorDocument[]>;
+  addInvestorDocument(document: Omit<InvestorDocument, 'documentId'>): Promise<InvestorDocument>;
+  updateInvestorDocument(documentId: string, fields: Partial<InvestorDocument>): Promise<InvestorDocument>;
 }
 
 export interface ITradeRepository {
