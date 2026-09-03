@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
 import { KpiCard } from '../../components/common/KpiCard';
@@ -39,9 +40,11 @@ export const DashboardScreen: React.FC = () => {
     }
   }, [repository]);
 
-  useEffect(() => {
-    fetchSummary();
-  }, [fetchSummary]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchSummary();
+    }, [fetchSummary])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

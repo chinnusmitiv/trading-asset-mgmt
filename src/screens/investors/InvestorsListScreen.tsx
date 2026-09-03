@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
 import { SearchBar } from '../../components/common/SearchBar';
@@ -25,7 +25,6 @@ export const InvestorsListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { user, repository } = useAuth();
   const [investors, setInvestors] = useState<Investor[]>([]);
-  const [filteredInvestors, setFilteredInvestors] = useState<Investor[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
@@ -34,46 +33,39 @@ export const InvestorsListScreen: React.FC = () => {
   const loadInvestors = useCallback(async () => {
     try {
       const data = await repository.getInvestors();
-      setInvestors(data);
-      applyFilters(data, statusFilter, searchQuery);
+      setInvestors(data || []);
     } catch (e) {
       // Handle error
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [repository, statusFilter, searchQuery]);
+  }, [repository]);
 
-  useEffect(() => {
-    loadInvestors();
-  }, [loadInvestors]);
+  // Immediately load on mount and every time user focuses on this tab
+  useFocusEffect(
+    useCallback(() => {
+      loadInvestors();
+    }, [loadInvestors])
+  );
 
-  const applyFilters = (data: Investor[], status: string, query: string) => {
-    let result = [...data];
-    if (status !== 'All') {
-      result = result.filter(i => i.status === status);
+  // Synchronous and immediate filtering via useMemo
+  const filteredInvestors = useMemo(() => {
+    let result = [...investors];
+    if (statusFilter !== 'All') {
+      result = result.filter(i => i.status === statusFilter);
     }
-    if (query.trim()) {
-      const q = query.toLowerCase();
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
       result = result.filter(
         i =>
           i.name.toLowerCase().includes(q) ||
           i.investorId.toLowerCase().includes(q) ||
-          i.phone.includes(q)
+          i.phone.toLowerCase().includes(q)
       );
     }
-    setFilteredInvestors(result);
-  };
-
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
-    applyFilters(investors, statusFilter, text);
-  };
-
-  const handleStatusChange = (status: string) => {
-    setStatusFilter(status);
-    applyFilters(investors, status, searchQuery);
-  };
+    return result;
+  }, [investors, statusFilter, searchQuery]);
 
   const renderInvestorCard = ({ item }: { item: Investor }) => (
     <TouchableOpacity
@@ -101,7 +93,7 @@ export const InvestorsListScreen: React.FC = () => {
           </Text>
         </View>
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Onboarding Date:</Text>
+          <Text style={styles.infoLabel}>Joined:</Text>
           <Text style={styles.infoValue}>{formatDate(item.joiningDate)}</Text>
         </View>
         {item.notes ? (
@@ -111,54 +103,62 @@ export const InvestorsListScreen: React.FC = () => {
           </View>
         ) : null}
       </View>
+
+      <View style={styles.cardFooter}>
+        <Text style={styles.viewPortfolioText}>View 5-Tab Portfolio ›</Text>
+      </View>
     </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
-        title="Investors"
-        subtitle={`${investors.length} Total Registered Portfolios`}
+        title="Investor Directory"
+        subtitle={`${investors.length} Registered Portfolios`}
         user={user}
         rightAction={
-          <Button
-            title="+ Onboard"
-            size="sm"
-            onPress={() => navigation.navigate('AddInvestor')}
-          />
+          user?.role === 'Admin' || user?.role === 'Manager' ? (
+            <Button
+              title="+ Add Investor"
+              size="sm"
+              onPress={() => navigation.navigate('AddInvestor')}
+            />
+          ) : undefined
         }
       />
 
       <View style={styles.container}>
         <SearchBar
-          placeholder="Search by investor name, ID, phone..."
-          onSearch={handleSearch}
+          value={searchQuery}
+          onSearch={setSearchQuery}
+          placeholder="Search by name, ID, or phone..."
         />
 
+        {/* Filter Pills */}
         <View style={styles.filterPills}>
-          {['All', 'Active', 'Inactive', 'Suspended'].map(status => (
+          {['All', 'Active', 'Inactive', 'Suspended'].map(st => (
             <TouchableOpacity
-              key={status}
+              key={st}
               style={[
                 styles.pill,
-                statusFilter === status && styles.pillActive
+                statusFilter === st && styles.pillActive
               ]}
-              onPress={() => handleStatusChange(status)}
+              onPress={() => setStatusFilter(st)}
             >
               <Text
                 style={[
                   styles.pillText,
-                  statusFilter === status && styles.pillTextActive
+                  statusFilter === st && styles.pillTextActive
                 ]}
               >
-                {status}
+                {st}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
         {loading && !refreshing ? (
-          <LoadingState message="Fetching investor ledger..." />
+          <LoadingState message="Loading investor portfolios..." />
         ) : (
           <FlatList
             data={filteredInvestors}
@@ -179,7 +179,13 @@ export const InvestorsListScreen: React.FC = () => {
               <EmptyState
                 icon="👥"
                 title="No Investors Found"
-                message="No investor profiles match your search criteria."
+                message={
+                  searchQuery
+                    ? `No investors match "${searchQuery}".`
+                    : 'No investors onboarded yet.'
+                }
+                actionLabel={user?.role !== 'Staff' ? '+ Onboard Investor' : undefined}
+                onAction={() => navigation.navigate('AddInvestor')}
               />
             }
           />
@@ -201,7 +207,7 @@ const styles = StyleSheet.create({
   filterPills: {
     flexDirection: 'row',
     gap: THEME.spacing.sm,
-    marginBottom: THEME.spacing.sm
+    marginVertical: THEME.spacing.sm
   },
   pill: {
     paddingHorizontal: 12,
@@ -247,7 +253,7 @@ const styles = StyleSheet.create({
   },
   investorId: {
     fontSize: THEME.typography.fontSize.xs,
-    color: THEME.colors.text.muted,
+    color: THEME.colors.text.secondary,
     marginTop: 2
   },
   divider: {
@@ -260,16 +266,27 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
+    justifyContent: 'space-between'
   },
   infoLabel: {
     fontSize: THEME.typography.fontSize.xs,
-    color: THEME.colors.text.secondary
+    color: THEME.colors.text.muted
   },
   infoValue: {
     fontSize: THEME.typography.fontSize.xs,
-    fontWeight: '600',
-    color: THEME.colors.text.primary
+    color: THEME.colors.text.secondary,
+    fontWeight: '500'
+  },
+  cardFooter: {
+    marginTop: THEME.spacing.sm,
+    paddingTop: THEME.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: THEME.colors.background.divider,
+    alignItems: 'flex-end'
+  },
+  viewPortfolioText: {
+    fontSize: THEME.typography.fontSize.xs,
+    fontWeight: '700',
+    color: THEME.colors.accent.indigo
   }
 });

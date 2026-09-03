@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -31,7 +31,7 @@ export const StaffListScreen: React.FC = () => {
   const loadStaff = useCallback(async () => {
     try {
       const data = await repository.getStaffList();
-      setStaffList(data);
+      setStaffList(data || []);
     } catch (e) {
       // Handle error
     } finally {
@@ -40,9 +40,11 @@ export const StaffListScreen: React.FC = () => {
     }
   }, [repository]);
 
-  useEffect(() => {
-    loadStaff();
-  }, [loadStaff]);
+  useFocusEffect(
+    useCallback(() => {
+      loadStaff();
+    }, [loadStaff])
+  );
 
   const canViewAll = hasPermission(user, 'VIEW_ALL_STAFF');
 

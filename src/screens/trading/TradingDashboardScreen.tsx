@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
 import { KpiCard } from '../../components/common/KpiCard';
@@ -25,7 +25,6 @@ export const TradingDashboardScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { user, repository } = useAuth();
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
@@ -34,31 +33,28 @@ export const TradingDashboardScreen: React.FC = () => {
     try {
       const filters = user?.role === 'Staff' ? { staffId: user.staffId } : undefined;
       const data = await repository.getTrades(filters);
-      setTrades(data);
-      applyFilter(data, statusFilter);
+      setTrades(data || []);
     } catch (e) {
       // Handle error
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [repository, user, statusFilter]);
+  }, [repository, user]);
 
-  useEffect(() => {
-    loadTrades();
-  }, [loadTrades]);
+  useFocusEffect(
+    useCallback(() => {
+      loadTrades();
+    }, [loadTrades])
+  );
 
-  const applyFilter = (data: Trade[], status: string) => {
-    if (status === 'All') {
-      setFilteredTrades(data);
-    } else {
-      setFilteredTrades(data.filter(t => t.status === status));
-    }
-  };
+  const filteredTrades = useMemo(() => {
+    if (statusFilter === 'All') return trades;
+    return trades.filter(t => t.status === statusFilter);
+  }, [trades, statusFilter]);
 
   const handleStatusChange = (status: string) => {
     setStatusFilter(status);
-    applyFilter(trades, status);
   };
 
   // Aggregated KPIs

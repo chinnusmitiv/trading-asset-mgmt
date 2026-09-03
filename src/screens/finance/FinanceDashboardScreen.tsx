@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
 import { KpiCard } from '../../components/common/KpiCard';
@@ -39,8 +39,8 @@ export const FinanceDashboardScreen: React.FC = () => {
         repository.getSalaries()
       ]);
       setSummary(sum);
-      setExpenses(exp);
-      setSalaries(sal);
+      setExpenses(exp || []);
+      setSalaries(sal || []);
     } catch (e) {
       // Handle error
     } finally {
@@ -49,9 +49,11 @@ export const FinanceDashboardScreen: React.FC = () => {
     }
   }, [repository]);
 
-  useEffect(() => {
-    loadFinanceData();
-  }, [loadFinanceData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadFinanceData();
+    }, [loadFinanceData])
+  );
 
   if (loading && !refreshing) {
     return <LoadingState message="Reconciling financial ledgers..." />;

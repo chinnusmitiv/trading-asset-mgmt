@@ -7,7 +7,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableOpacity
+  TouchableOpacity,
+  Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../../constants/theme';
@@ -71,11 +72,13 @@ export const LoginScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.logoSection}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoIcon}>📈</Text>
-            </View>
-            <Text style={styles.appTitle}>Asset Management</Text>
-            <Text style={styles.appSubtitle}>Operations & Trading Command Center</Text>
+            <Image
+              source={require('../../../assets/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.appTitle}>VANTARA</Text>
+            <Text style={styles.appSubtitle}>TRADING COMPANY • OPERATIONS HUB</Text>
           </View>
 
           <View style={styles.card}>
@@ -171,25 +174,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: THEME.spacing.xl
   },
-  logoBadge: {
-    width: 64,
-    height: 64,
+  logoImage: {
+    width: 96,
+    height: 96,
     borderRadius: 20,
-    backgroundColor: THEME.colors.background.card,
-    borderWidth: 1,
-    borderColor: THEME.colors.accent.indigo,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: THEME.spacing.md
-  },
-  logoIcon: {
-    fontSize: 32
+    marginBottom: THEME.spacing.sm
   },
   appTitle: {
-    fontSize: THEME.typography.fontSize.xxl,
-    fontWeight: '800',
-    color: THEME.colors.text.primary,
-    letterSpacing: -0.5
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#D4AF37', // Gold
+    letterSpacing: 2
   },
   appSubtitle: {
     fontSize: THEME.typography.fontSize.sm,
