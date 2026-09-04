@@ -10,7 +10,8 @@ import {
   Alert,
   Modal,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Linking
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
@@ -265,6 +266,31 @@ export const StaffDetailsScreen: React.FC = () => {
     }
   };
 
+  // Launch device phone dialer
+  const handleCallPhone = (phone?: string) => {
+    if (!phone || !phone.trim()) {
+      Alert.alert('Notice', 'No contact phone number available for this staff member.');
+      return;
+    }
+    const cleanPhone = phone.replace(/[^0-9+]/g, '');
+    const phoneUrl = `tel:${cleanPhone}`;
+    Linking.openURL(phoneUrl).catch(() => {
+      Alert.alert('Error', 'Unable to open the phone dialer on this device.');
+    });
+  };
+
+  // Launch email client
+  const handleSendEmail = (email?: string) => {
+    if (!email || !email.trim()) {
+      Alert.alert('Notice', 'No email address available for this staff member.');
+      return;
+    }
+    const emailUrl = `mailto:${email.trim()}`;
+    Linking.openURL(emailUrl).catch(() => {
+      Alert.alert('Error', 'Unable to open email client on this device.');
+    });
+  };
+
   if (loading && !refreshing) {
     return <LoadingState message="Loading staff trading profile..." />;
   }
@@ -316,8 +342,20 @@ export const StaffDetailsScreen: React.FC = () => {
 
         {/* Quick Contact Bar */}
         <View style={styles.contactBar}>
-          <Text style={styles.contactText}>📞 {staff.phone}</Text>
-          <Text style={styles.contactText}>✉️ {staff.email}</Text>
+          <TouchableOpacity
+            style={styles.contactBtn}
+            onPress={() => handleCallPhone(staff.phone)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.contactText}>📞 {staff.phone}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.contactBtn}
+            onPress={() => handleSendEmail(staff.email)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.contactText}>✉️ {staff.email}</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -641,11 +679,15 @@ export const StaffDetailsScreen: React.FC = () => {
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Phone:</Text>
-                <Text style={styles.infoValue}>{staff.phone}</Text>
+                <TouchableOpacity onPress={() => handleCallPhone(staff.phone)} activeOpacity={0.7}>
+                  <Text style={[styles.infoValue, styles.contactLink]}>📞 {staff.phone}</Text>
+                </TouchableOpacity>
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Email:</Text>
-                <Text style={styles.infoValue}>{staff.email}</Text>
+                <TouchableOpacity onPress={() => handleSendEmail(staff.email)} activeOpacity={0.7}>
+                  <Text style={[styles.infoValue, styles.contactLink]}>✉️ {staff.email}</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -1013,14 +1055,29 @@ const styles = StyleSheet.create({
   contactBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: THEME.spacing.md,
     paddingTop: THEME.spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: THEME.colors.background.divider
+    borderTopColor: THEME.colors.background.divider,
+    gap: 8
+  },
+  contactBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: THEME.borderRadius.sm,
+    backgroundColor: THEME.colors.background.secondary,
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border
   },
   contactText: {
     fontSize: 11,
-    color: THEME.colors.text.secondary
+    color: THEME.colors.accent.indigo,
+    fontWeight: '700'
   },
   tabsStrip: {
     borderBottomWidth: 1,
@@ -1249,6 +1306,10 @@ const styles = StyleSheet.create({
     fontSize: THEME.typography.fontSize.xs,
     fontWeight: '600',
     color: THEME.colors.text.primary
+  },
+  contactLink: {
+    color: THEME.colors.accent.indigo,
+    fontWeight: '700'
   },
   inputLabel: {
     fontSize: THEME.typography.fontSize.xs,

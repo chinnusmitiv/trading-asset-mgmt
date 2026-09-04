@@ -436,6 +436,31 @@ export const InvestorProfileScreen: React.FC = () => {
     });
   };
 
+  // Launch device phone dialer
+  const handleCallPhone = (phone?: string) => {
+    if (!phone || !phone.trim()) {
+      Alert.alert('Notice', 'No contact phone number available.');
+      return;
+    }
+    const cleanPhone = phone.replace(/[^0-9+]/g, '');
+    const phoneUrl = `tel:${cleanPhone}`;
+    Linking.openURL(phoneUrl).catch(() => {
+      Alert.alert('Error', 'Unable to open the phone dialer on this device.');
+    });
+  };
+
+  // Launch email client
+  const handleSendEmail = (email?: string) => {
+    if (!email || !email.trim()) {
+      Alert.alert('Notice', 'No email address available.');
+      return;
+    }
+    const emailUrl = `mailto:${email.trim()}`;
+    Linking.openURL(emailUrl).catch(() => {
+      Alert.alert('Error', 'Unable to open email client on this device.');
+    });
+  };
+
   // Handle Mark Payment as Paid
   const handleMarkPaymentPaid = async () => {
     if (!confirmPaymentModal.payment) return;
@@ -575,14 +600,16 @@ export const InvestorProfileScreen: React.FC = () => {
               <View style={styles.divider} />
 
               <View style={styles.contactGrid}>
-                <View style={styles.contactItem}>
+                <TouchableOpacity style={styles.contactItem} onPress={() => handleCallPhone(investor.phone)} activeOpacity={0.7}>
                   <Text style={styles.contactLabel}>Phone Number</Text>
-                  <Text style={styles.contactValue}>{investor.phone}</Text>
-                </View>
-                <View style={styles.contactItem}>
+                  <Text style={[styles.contactValue, { color: THEME.colors.accent.indigo }]}>📞 {investor.phone}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.contactItem} onPress={() => handleSendEmail(investor.email)} activeOpacity={0.7}>
                   <Text style={styles.contactLabel}>Email Address</Text>
-                  <Text style={styles.contactValue}>{investor.email || '—'}</Text>
-                </View>
+                  <Text style={[styles.contactValue, investor.email ? { color: THEME.colors.accent.indigo } : undefined]}>
+                    {investor.email ? `✉️ ${investor.email}` : '—'}
+                  </Text>
+                </TouchableOpacity>
                 <View style={styles.contactItem}>
                   <Text style={styles.contactLabel}>Address</Text>
                   <Text style={styles.contactValue}>{investor.address || '—'}</Text>
