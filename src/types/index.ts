@@ -41,6 +41,19 @@ export interface InvestorBank {
   createdAt: string;
 }
 
+export interface StaffBank {
+  bankId: string;
+  staffId: string;
+  accountHolderName: string;
+  bankName: string;
+  accountNumberMasked: string; // e.g. "XXXX XXXX 4582"
+  ifscCode: string;
+  accountType: 'Savings' | 'Current' | 'Salary';
+  upiId?: string;
+  isPrimary: boolean;
+  createdAt: string;
+}
+
 export interface InvestorDocument {
   documentId: string;
   entityType: 'Investor' | 'Staff' | 'Company' | 'Expense';

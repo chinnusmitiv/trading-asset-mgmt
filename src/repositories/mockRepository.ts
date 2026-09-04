@@ -22,6 +22,7 @@ import {
   InvestorPayment,
   InvestorDocument,
   Staff,
+  StaffBank,
   Trade,
   StaffCommission,
   Expense,
@@ -63,6 +64,13 @@ export class MockRepository
     { staffId: 'STAFF-00001', name: 'Operations Manager', phone: '+91 98765 43210', email: 'manager@assetmgmt.internal', role: 'Manager', department: 'Operations', joiningDate: '2024-01-15', basicSalary: 150000, tradingPercentage: 0, commissionPercentage: 5, status: 'Active', bankDetailsReference: 'BNK-S01', notes: 'Head of Operations', createdAt: '2024-01-15T10:00:00.000Z', updatedAt: '2024-01-15T10:00:00.000Z' },
     { staffId: 'STAFF-00002', name: 'Vikram Sharma', phone: '+91 98111 22334', email: 'vikram@assetmgmt.internal', role: 'Trader', department: 'Prop Trading', joiningDate: '2024-03-01', basicSalary: 80000, tradingPercentage: 20, commissionPercentage: 0, status: 'Active', bankDetailsReference: 'BNK-S02', notes: 'Index Derivatives Trader', createdAt: '2024-03-01T10:00:00.000Z', updatedAt: '2024-03-01T10:00:00.000Z' },
     { staffId: 'STAFF-00003', name: 'Priya Patel', phone: '+91 98222 33445', email: 'priya@assetmgmt.internal', role: 'Trader', department: 'Prop Trading', joiningDate: '2024-06-01', basicSalary: 80000, tradingPercentage: 20, commissionPercentage: 0, status: 'Active', bankDetailsReference: 'BNK-S03', notes: 'Options Specialist', createdAt: '2024-06-01T10:00:00.000Z', updatedAt: '2024-06-01T10:00:00.000Z' }
+  ];
+
+  private staffBanks: StaffBank[] = [
+    { bankId: 'STFBANK-00001', staffId: 'STAFF-00001', accountHolderName: 'Operations Manager', bankName: 'HDFC Bank', accountNumberMasked: 'XXXX XXXX 8812', ifscCode: 'HDFC0000123', accountType: 'Salary', upiId: 'manager@okhdfcbank', isPrimary: true, createdAt: '2024-01-15T10:00:00.000Z' },
+    { bankId: 'STFBANK-00002', staffId: 'STAFF-00002', accountHolderName: 'Vikram Sharma', bankName: 'ICICI Bank', accountNumberMasked: 'XXXX XXXX 4190', ifscCode: 'ICIC0000456', accountType: 'Salary', upiId: 'vikram.trader@okicici', isPrimary: true, createdAt: '2024-03-01T10:00:00.000Z' },
+    { bankId: 'STFBANK-00003', staffId: 'STAFF-00002', accountHolderName: 'Vikram Sharma', bankName: 'HDFC Bank', accountNumberMasked: 'XXXX XXXX 7731', ifscCode: 'HDFC0000998', accountType: 'Savings', upiId: 'vikram99@hdfcbank', isPrimary: false, createdAt: '2024-05-10T10:00:00.000Z' },
+    { bankId: 'STFBANK-00004', staffId: 'STAFF-00003', accountHolderName: 'Priya Patel', bankName: 'Axis Bank', accountNumberMasked: 'XXXX XXXX 2341', ifscCode: 'UTIB0000312', accountType: 'Salary', upiId: 'priya.patel@axisbank', isPrimary: true, createdAt: '2024-06-01T10:00:00.000Z' }
   ];
 
   private investors: Investor[] = [
@@ -540,10 +548,15 @@ export class MockRepository
 
     const winRate = staffTrades.length > 0 ? (winningTrades / staffTrades.length) * 100 : 0;
 
+    const staffBanks = this.staffBanks.filter(b => b.staffId === staffId);
+    const primaryBank = staffBanks.find(b => b.isPrimary) || staffBanks[0];
+
     return {
       staff: member,
       trades: staffTrades,
       commissions: staffCommissions,
+      banks: staffBanks,
+      bank: primaryBank,
       metrics: {
         totalTrades: staffTrades.length,
         winningTrades,
@@ -626,6 +639,92 @@ export class MockRepository
     }
     await this.logEvent('COMMISSION_STATUS_UPDATED', 'Trading', commissionId, oldVal, this.commissions[idx], `Commission status changed to ${status}`);
     return this.commissions[idx];
+  }
+
+  async getStaffBanks(staffId: string): Promise<StaffBank[]> {
+    return this.staffBanks.filter(b => b.staffId === staffId);
+  }
+
+  async addStaffBank(data: Omit<StaffBank, 'bankId' | 'createdAt'>): Promise<StaffBank> {
+    const seq = this.staffBanks.length + 1;
+    const newId = `STFBANK-${('00000' + seq).slice(-5)}`;
+    const existingStaffBanks = this.staffBanks.filter(b => b.staffId === data.staffId);
+    const isPrimary = data.isPrimary || existingStaffBanks.length === 0;
+
+    if (isPrimary) {
+      this.staffBanks.forEach(b => {
+        if (b.staffId === data.staffId) {
+          b.isPrimary = false;
+        }
+      });
+    }
+
+    const newBank: StaffBank = {
+      ...data,
+      bankId: newId,
+      isPrimary,
+      createdAt: new Date().toISOString()
+    };
+
+    this.staffBanks.push(newBank);
+    await this.logEvent('STAFF_BANK_ADDED', 'Staff', newId, null, newBank, `Added ${data.bankName} account for staff ${data.staffId}`);
+    return newBank;
+  }
+
+  async updateStaffBank(bankId: string, fields: Partial<StaffBank>): Promise<StaffBank> {
+    const idx = this.staffBanks.findIndex(b => b.bankId === bankId);
+    if (idx === -1) throw new Error(`Staff bank account ${bankId} not found`);
+    const oldVal = { ...this.staffBanks[idx] };
+    const staffId = this.staffBanks[idx].staffId;
+
+    if (fields.isPrimary) {
+      this.staffBanks.forEach(b => {
+        if (b.staffId === staffId) {
+          b.isPrimary = false;
+        }
+      });
+    }
+
+    this.staffBanks[idx] = {
+      ...this.staffBanks[idx],
+      ...fields
+    };
+
+    await this.logEvent('STAFF_BANK_UPDATED', 'Staff', bankId, oldVal, this.staffBanks[idx], `Updated staff bank account ${bankId}`);
+    return this.staffBanks[idx];
+  }
+
+  async deleteStaffBank(bankId: string): Promise<void> {
+    const idx = this.staffBanks.findIndex(b => b.bankId === bankId);
+    if (idx === -1) throw new Error(`Staff bank account ${bankId} not found`);
+    const oldVal = { ...this.staffBanks[idx] };
+    const staffId = oldVal.staffId;
+
+    this.staffBanks.splice(idx, 1);
+
+    // If deleted account was primary, set the first remaining account for this staff as primary
+    if (oldVal.isPrimary) {
+      const remaining = this.staffBanks.filter(b => b.staffId === staffId);
+      if (remaining.length > 0) {
+        remaining[0].isPrimary = true;
+      }
+    }
+
+    await this.logEvent('STAFF_BANK_DELETED', 'Staff', bankId, oldVal, null, `Deleted staff bank account ${bankId}`);
+  }
+
+  async setPrimaryStaffBank(staffId: string, bankId: string): Promise<StaffBank> {
+    const targetIdx = this.staffBanks.findIndex(b => b.bankId === bankId && b.staffId === staffId);
+    if (targetIdx === -1) throw new Error(`Staff bank account ${bankId} not found for staff ${staffId}`);
+
+    this.staffBanks.forEach(b => {
+      if (b.staffId === staffId) {
+        b.isPrimary = b.bankId === bankId;
+      }
+    });
+
+    await this.logEvent('STAFF_PRIMARY_BANK_CHANGED', 'Staff', bankId, null, this.staffBanks[targetIdx], `Set ${this.staffBanks[targetIdx].bankName} as primary payout account for staff ${staffId}`);
+    return this.staffBanks[targetIdx];
   }
 
   // --- Finance Methods ---
@@ -752,6 +851,26 @@ export class MockRepository
     return this.expenses[idx];
   }
 
+  async updateExpense(expenseId: string, fields: Partial<Expense>): Promise<Expense> {
+    const idx = this.expenses.findIndex(e => e.expenseId === expenseId);
+    if (idx === -1) throw new Error(`Expense ${expenseId} not found`);
+    const oldVal = { ...this.expenses[idx] };
+    this.expenses[idx] = {
+      ...this.expenses[idx],
+      ...fields
+    };
+    await this.logEvent('EXPENSE_UPDATED', 'Finance', expenseId, oldVal, this.expenses[idx], `Updated expense ${expenseId}`);
+    return this.expenses[idx];
+  }
+
+  async deleteExpense(expenseId: string): Promise<void> {
+    const idx = this.expenses.findIndex(e => e.expenseId === expenseId);
+    if (idx === -1) throw new Error(`Expense ${expenseId} not found`);
+    const oldVal = { ...this.expenses[idx] };
+    this.expenses.splice(idx, 1);
+    await this.logEvent('EXPENSE_DELETED', 'Finance', expenseId, oldVal, null, `Deleted expense ${expenseId} (${oldVal.description})`);
+  }
+
   async getSalaries(filters?: { month?: string; staffId?: string; status?: string }): Promise<Salary[]> {
     let list = [...this.salaries];
     if (filters?.month) {
@@ -777,7 +896,7 @@ export class MockRepository
     return comms.reduce((sum, c) => sum + c.commissionAmount, 0);
   }
 
-  async createSalary(data: Omit<Salary, 'salaryId' | 'createdAt'>, requestId?: string): Promise<Salary> {
+  async createSalary(data: Omit<Salary, 'salaryId' | 'createdAt' | 'netSalary'> & { netSalary?: number }, requestId?: string): Promise<Salary> {
     if (requestId && this.idempotencyCache.has(requestId)) {
       return this.idempotencyCache.get(requestId);
     }
@@ -812,6 +931,36 @@ export class MockRepository
     return newSalary;
   }
 
+  async updateSalary(salaryId: string, fields: Partial<Salary>): Promise<Salary> {
+    const idx = this.salaries.findIndex(s => s.salaryId === salaryId);
+    if (idx === -1) throw new Error(`Salary slip ${salaryId} not found`);
+    const oldVal = { ...this.salaries[idx] };
+
+    const basicSalary = fields.basicSalary !== undefined ? fields.basicSalary : oldVal.basicSalary;
+    const allowance = fields.allowance !== undefined ? fields.allowance : (oldVal.allowance || 0);
+    const bonus = fields.bonus !== undefined ? fields.bonus : (oldVal.bonus || 0);
+    const commission = fields.commission !== undefined ? fields.commission : (oldVal.commission || 0);
+    const deduction = fields.deduction !== undefined ? fields.deduction : (oldVal.deduction || 0);
+    const advance = fields.advance !== undefined ? fields.advance : (oldVal.advance || 0);
+
+    const netSalary = calculateNetSalary(basicSalary, allowance, bonus, commission, deduction, advance);
+
+    this.salaries[idx] = {
+      ...this.salaries[idx],
+      ...fields,
+      basicSalary,
+      allowance,
+      bonus,
+      commission,
+      deduction,
+      advance,
+      netSalary
+    };
+
+    await this.logEvent('SALARY_UPDATED', 'Finance', salaryId, oldVal, this.salaries[idx], `Updated salary slip ${salaryId}`);
+    return this.salaries[idx];
+  }
+
   async updateSalaryStatus(salaryId: string, status: Salary['paymentStatus'], approverId?: string, paymentReference?: string): Promise<Salary> {
     const idx = this.salaries.findIndex(s => s.salaryId === salaryId);
     if (idx === -1) throw new Error('Salary not found');
@@ -829,6 +978,23 @@ export class MockRepository
     }
     await this.logEvent('SALARY_STATUS_UPDATED', 'Finance', salaryId, oldVal, this.salaries[idx], `Status changed to ${status}`);
     return this.salaries[idx];
+  }
+
+  async deleteSalary(salaryId: string): Promise<void> {
+    const idx = this.salaries.findIndex(s => s.salaryId === salaryId);
+    if (idx === -1) throw new Error(`Salary slip ${salaryId} not found`);
+    const oldVal = { ...this.salaries[idx] };
+
+    // Restore associated commissions for that staff & month back to Calculated so they can be re-processed
+    this.commissions.forEach(c => {
+      if (c.staffId === oldVal.staffId && c.commissionPeriod === oldVal.salaryMonth && c.status === 'Paid') {
+        c.status = 'Calculated';
+        delete (c as any).paidAt;
+      }
+    });
+
+    this.salaries.splice(idx, 1);
+    await this.logEvent('SALARY_DELETED', 'Finance', salaryId, oldVal, null, `Deleted salary slip ${salaryId} for staff ${oldVal.staffId}`);
   }
 
   // --- Audit Methods ---

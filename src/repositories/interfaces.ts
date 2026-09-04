@@ -11,6 +11,7 @@ import {
   InvestorPayment,
   InvestorDocument,
   Staff,
+  StaffBank,
   Trade,
   StaffCommission,
   Expense,
@@ -64,6 +65,8 @@ export interface IStaffRepository {
     staff: Staff;
     trades: Trade[];
     commissions: StaffCommission[];
+    banks: StaffBank[];
+    bank?: StaffBank;
     metrics: {
       totalTrades: number;
       winningTrades: number;
@@ -78,6 +81,11 @@ export interface IStaffRepository {
   getCommissions(filters?: { staffId?: string; period?: string }): Promise<StaffCommission[]>;
   calculateAndCreateCommission(data: Omit<StaffCommission, 'commissionId' | 'createdAt'>, requestId?: string): Promise<StaffCommission>;
   updateCommissionStatus(commissionId: string, status: StaffCommission['status']): Promise<StaffCommission>;
+  getStaffBanks(staffId: string): Promise<StaffBank[]>;
+  addStaffBank(bank: Omit<StaffBank, 'bankId' | 'createdAt'>): Promise<StaffBank>;
+  updateStaffBank(bankId: string, fields: Partial<StaffBank>): Promise<StaffBank>;
+  deleteStaffBank(bankId: string): Promise<void>;
+  setPrimaryStaffBank(staffId: string, bankId: string): Promise<StaffBank>;
 }
 
 export interface IFinanceRepository {
@@ -85,11 +93,15 @@ export interface IFinanceRepository {
   getExpenses(filters?: { category?: string; status?: string }): Promise<Expense[]>;
   getExpenseDetails(expenseId: string): Promise<Expense | null>;
   createExpense(expense: Omit<Expense, 'expenseId' | 'createdAt'>, requestId?: string): Promise<Expense>;
+  updateExpense(expenseId: string, fields: Partial<Expense>): Promise<Expense>;
   updateExpenseStatus(expenseId: string, status: Expense['status'], approverId?: string, paymentReference?: string): Promise<Expense>;
+  deleteExpense(expenseId: string): Promise<void>;
   getSalaries(filters?: { month?: string; staffId?: string; status?: string }): Promise<Salary[]>;
   getSalaryDetails(salaryId: string): Promise<Salary | null>;
-  createSalary(salary: Omit<Salary, 'salaryId' | 'createdAt'>, requestId?: string): Promise<Salary>;
+  createSalary(salary: Omit<Salary, 'salaryId' | 'createdAt' | 'netSalary'> & { netSalary?: number }, requestId?: string): Promise<Salary>;
+  updateSalary(salaryId: string, fields: Partial<Salary>): Promise<Salary>;
   updateSalaryStatus(salaryId: string, status: Salary['paymentStatus'], approverId?: string, paymentReference?: string): Promise<Salary>;
+  deleteSalary(salaryId: string): Promise<void>;
   getStaffUnpaidCommissions(staffId: string, month: string): Promise<number>;
 }
 

@@ -9,7 +9,7 @@ A production-grade, enterprise financial management and proprietary trading oper
 2. [Google Sheets Backend Setup (Live Database)](#-google-sheets-backend-setup-live-database)
 3. [Running the Mobile App Locally](#-running-the-mobile-app-locally)
 4. [Building Android APK & Release Bundle](#-building-android-apk--release-bundle)
-5. [Demo Credentials (Mock Mode)](#-demo-credentials-mock-mode)
+5. [Role-Based Access Control (RBAC) & Login Personas](#-role-based-access-control-rbac--login-personas)
 6. [Automated Tests & Quality Checks](#-automated-tests--quality-checks)
 7. [Core Financial Invariants & Formulas](#-core-financial-invariants--formulas)
 8. [Project Structure](#-project-structure)
@@ -159,15 +159,58 @@ npx eas-cli build -p android --profile production
 
 ---
 
-## 🔑 Demo Credentials (Mock Mode)
+## 🔑 Role-Based Access Control (RBAC) & Login Personas
 
-When `Offline Mock Development Mode` is enabled in Settings, use the following logins:
+When running in **Offline Mock Mode** or against the live Google Sheets database, the platform enforces 3 security tiers:
 
-| Role | Username | Password | Permissions |
+### 📊 Role Comparison Matrix
+
+| Feature / Capability | 👑 Admin (`admin`) | 👔 Desk Manager (`manager`) | 📈 Staff / Trader (`trader1`) |
+| :--- | :---: | :---: | :---: |
+| **Executive Dashboard & Consolidated P&L** | ✅ Full Firm P&L | ✅ Firm Overview | ❌ Hidden |
+| **Investor Management & Tranches** | ✅ View, Add & Edit | ✅ View, Add & Edit | ❌ Hidden |
+| **Bank Account Numbers & Phone Numbers** | 🔓 **Unmasked** Full View | 🔒 **Masked** (`XXXX 4582`) | ❌ Hidden |
+| **Disburse Payments to Investors** | ✅ Mark Paid | ✅ Mark Paid | ❌ Hidden |
+| **Reverse Financial Payments** | ✅ Authorized with Audit | ❌ Restricted | ❌ Hidden |
+| **Trading Desk Books** | ✅ All Firm Trades | ✅ All Firm Trades | 👤 **Only Own Trades** |
+| **Trade Settlement & Profit Distribution** | ✅ Settle & Calculate | ✅ Settle & Calculate | ❌ Log Trades Only |
+| **Staff Salaries & Payroll** | 🔓 Full Salaries & Payroll | 🔒 Marked Confidential | 👤 **Only Own Salary Slip** |
+| **Expense Management** | ✅ Submit & Approve | ✅ Submit & Approve | 📝 Submit Claims Only |
+| **Immutable Audit Trail Log** | ✅ View Full Audit Trail | ❌ Restricted | ❌ Hidden |
+| **Google Sheets & Backend API Settings** | ✅ Full Access | ❌ Restricted | ❌ Hidden |
+
+### 🔐 Login Credentials (Demo / Mock Mode)
+
+| Role | Username | Password | Access Scope |
 |---|---|---|---|
-| **Super Admin** | `admin` | `admin123` | Unrestricted full access to all modules, financial ledgers, and audit logs |
-| **Desk Manager** | `manager` | `manager123` | Trade review/settling, investor approvals, operational expenses |
-| **Prop Trader** | `trader1` | `trader123` | Trade execution entry, personal commission ledger, own portfolio |
+| **Super Admin** | `admin` | `admin123` | Unrestricted firm-wide access to all ledgers, unmasked PI data, payroll, reversals, and audit logs |
+| **Desk Manager** | `manager` | `manager123` | Operational lead: manages investors, reviews/settles trades, approves expenses (investor data masked, salaries hidden) |
+| **Prop Trader / Staff** | `trader1` | `trader123` | Individual trader workspace: logs personal trades, views own commission ledger and monthly salary slip |
+
+### 🔍 Detailed Persona Breakdown
+
+#### 1. 👑 **Super Admin** (`admin` / `admin123`) — *Managing Director / Firm Owner*
+* **Access Level**: Unrestricted full access to the entire firm's operations.
+* **Exclusive Powers**:
+  - View **unmasked** investor phone numbers and bank account details.
+  - View all staff basic salaries and execute monthly payroll.
+  - Perform **financial payment reversals** with mandatory justification audit stamps.
+  - Access system configuration (Google Sheets API sync endpoints) and view the immutable **Audit Trail**.
+
+#### 2. 👔 **Desk Manager** (`manager` / `manager123`) — *Trading Desk & Operations Lead*
+* **Access Level**: Full operational management across investors and trading operations.
+* **Guardrails & Privacy Protections**:
+  - Can onboard investors, edit tranches, record payments, and approve expenses.
+  - Sensitive investor phone numbers and bank accounts are **privacy-masked** (`+91 98765 *****`, `XXXX XXXX 4582`).
+  - Cannot view other staff members' basic salaries (`🔒 Confidential`).
+  - Cannot reverse financial transactions or alter system backend configurations.
+
+#### 3. 📈 **Staff / Trader** (`trader1` / `trader123`) — *Prop Trader / Desk Analyst*
+* **Access Level**: Segregated single-user workspace focused on personal execution.
+* **Scope**:
+  - **Zero access** to investor capital, investor portfolios, or firm financials.
+  - Can log personal buy/sell trade executions (`Add Trade`) and track personal Win/Loss performance.
+  - Can view **only their own** monthly salary slips, trading commissions, and submit reimbursement expense vouchers.
 
 ---
 

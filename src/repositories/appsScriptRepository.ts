@@ -22,6 +22,7 @@ import {
   InvestorPayment,
   InvestorDocument,
   Staff,
+  StaffBank,
   Trade,
   StaffCommission,
   Expense,
@@ -237,6 +238,35 @@ export class AppsScriptRepository
     return res.data;
   }
 
+  async getStaffBanks(staffId: string): Promise<StaffBank[]> {
+    const res = await this.client.request<StaffBank[]>('staff.banks.list', { staffId });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async addStaffBank(data: Omit<StaffBank, 'bankId' | 'createdAt'>): Promise<StaffBank> {
+    const res = await this.client.request<StaffBank>('staff.banks.add', data);
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async updateStaffBank(bankId: string, fields: Partial<StaffBank>): Promise<StaffBank> {
+    const res = await this.client.request<StaffBank>('staff.banks.update', { bankId, fields });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async deleteStaffBank(bankId: string): Promise<void> {
+    const res = await this.client.request<void>('staff.banks.delete', { bankId });
+    if (!res.success) throw new Error(res.message);
+  }
+
+  async setPrimaryStaffBank(staffId: string, bankId: string): Promise<StaffBank> {
+    const res = await this.client.request<StaffBank>('staff.banks.setPrimary', { staffId, bankId });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
   // --- Finance ---
   async getDashboardSummary(period?: string): Promise<DashboardSummary> {
     const res = await this.client.request<DashboardSummary>('dashboard.summary', { period });
@@ -261,10 +291,21 @@ export class AppsScriptRepository
     return res.data;
   }
 
+  async updateExpense(expenseId: string, fields: Partial<Expense>): Promise<Expense> {
+    const res = await this.client.request<Expense>('expenses.update', { expenseId, fields });
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
   async updateExpenseStatus(expenseId: string, status: Expense['status'], approverId?: string, paymentReference?: string): Promise<Expense> {
     const res = await this.client.request<Expense>('expenses.approve', { expenseId, status, approverId, paymentReference });
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
+  }
+
+  async deleteExpense(expenseId: string): Promise<void> {
+    const res = await this.client.request<void>('expenses.delete', { expenseId });
+    if (!res.success) throw new Error(res.message);
   }
 
   async getSalaries(filters?: { month?: string; staffId?: string; status?: string }): Promise<Salary[]> {
@@ -278,8 +319,14 @@ export class AppsScriptRepository
     return res.success ? res.data : null;
   }
 
-  async createSalary(data: Omit<Salary, 'salaryId' | 'createdAt'>, requestId?: string): Promise<Salary> {
+  async createSalary(data: Omit<Salary, 'salaryId' | 'createdAt' | 'netSalary'> & { netSalary?: number }, requestId?: string): Promise<Salary> {
     const res = await this.client.request<Salary>('salaries.create', data, requestId);
+    if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async updateSalary(salaryId: string, fields: Partial<Salary>): Promise<Salary> {
+    const res = await this.client.request<Salary>('salaries.update', { salaryId, fields });
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
   }
@@ -288,6 +335,11 @@ export class AppsScriptRepository
     const res = await this.client.request<Salary>('salaries.approve', { salaryId, status, approverId, paymentReference });
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
+  }
+
+  async deleteSalary(salaryId: string): Promise<void> {
+    const res = await this.client.request<void>('salaries.delete', { salaryId });
+    if (!res.success) throw new Error(res.message);
   }
 
   async getStaffUnpaidCommissions(staffId: string, month: string): Promise<number> {
