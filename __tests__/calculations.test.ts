@@ -1,5 +1,6 @@
 import {
   calculateTradePnL,
+  calculateExecutionRealizedPnL,
   calculateStaffShare,
   calculateCompanyShare,
   calculateROI,
@@ -20,6 +21,47 @@ describe('Financial Calculations Engine', () => {
 
     it('calculates negative net P&L (loss)', () => {
       expect(calculateTradePnL(10000, 45000)).toBe(-35000);
+    });
+
+    it('auto-calculates realized long trade profit and points gain', () => {
+      // Bought 300 qty @ 51200, Sold @ 51550 -> 350 pts gain -> 105,000 profit
+      const result = calculateExecutionRealizedPnL(51200, 51550, 300, false);
+      expect(result.pointsDifference).toBe(350);
+      expect(result.grossProfit).toBe(105000);
+      expect(result.grossLoss).toBe(0);
+      expect(result.netPnL).toBe(105000);
+      expect(result.turnover).toBe(15360000);
+    });
+
+    it('auto-calculates realized long trade loss when exit < entry', () => {
+      // Bought 100 qty @ 500, Sold @ 450 -> 50 pts loss -> 5000 loss
+      const result = calculateExecutionRealizedPnL(500, 450, 100, false);
+      expect(result.pointsDifference).toBe(-50);
+      expect(result.grossProfit).toBe(0);
+      expect(result.grossLoss).toBe(5000);
+      expect(result.netPnL).toBe(-5000);
+    });
+
+    it('auto-calculates realized short trade profit when exit < entry', () => {
+      // Shorted 200 qty @ 24500, Covered @ 24300 -> 200 pts profit -> 40000 profit
+      const result = calculateExecutionRealizedPnL(24500, 24300, 200, true);
+      expect(result.pointsDifference).toBe(200);
+      expect(result.grossProfit).toBe(40000);
+      expect(result.grossLoss).toBe(0);
+      expect(result.netPnL).toBe(40000);
+    });
+
+    it('auto-calculates net P&L with brokerage and charges deducted', () => {
+      // Gross 50,000 profit minus 1,200 charges -> Net 48,800
+      const result = calculateExecutionRealizedPnL(100, 150, 1000, false, 1200);
+      expect(result.grossProfit).toBe(50000);
+      expect(result.netPnL).toBe(48800);
+    });
+
+    it('handles zero or invalid input gracefully', () => {
+      const result = calculateExecutionRealizedPnL(0, 500, 100);
+      expect(result.grossProfit).toBe(0);
+      expect(result.netPnL).toBe(0);
     });
 
     it('calculates staff profit share on profit', () => {

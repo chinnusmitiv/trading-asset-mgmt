@@ -15,7 +15,7 @@ export default function App() {
     async function prepare() {
       try {
         // Allow splash screen logo to display smoothly
-        await new Promise(resolve => setTimeout(resolve, 600));
+        await new Promise<void>(resolve => setTimeout(resolve, 600));
       } catch (e) {
         console.warn('Splash screen preparation error:', e);
       } finally {

@@ -12,7 +12,8 @@
       "backgroundColor": "#0B0F19"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tradingassetmgmt.app"
     },
     "android": {
       "package": "com.tradingassetmgmt.app",

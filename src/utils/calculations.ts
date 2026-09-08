@@ -56,6 +56,64 @@ export function calculateTradePnL(grossProfit: number, grossLoss: number): numbe
 }
 
 /**
+ * Calculates trade execution realized gross profit, gross loss, and net earnings
+ * based on entry price, exit price, quantity, direction, and optional charges.
+ */
+export function calculateExecutionRealizedPnL(
+  entryPrice: number,
+  exitPrice: number,
+  quantity: number,
+  isShort: boolean = false,
+  brokerageAndCharges: number = 0
+): {
+  grossProfit: number;
+  grossLoss: number;
+  netPnL: number;
+  pointsDifference: number;
+  percentageReturn: number;
+  turnover: number;
+} {
+  if (!entryPrice || !exitPrice || !quantity || entryPrice <= 0 || exitPrice <= 0 || quantity <= 0) {
+    return {
+      grossProfit: 0,
+      grossLoss: 0,
+      netPnL: 0,
+      pointsDifference: 0,
+      percentageReturn: 0,
+      turnover: 0
+    };
+  }
+
+  const pointsDiff = isShort ? entryPrice - exitPrice : exitPrice - entryPrice;
+  const rawPnL = Number((pointsDiff * quantity).toFixed(2));
+  const turnover = Number((entryPrice * quantity).toFixed(2));
+  const percentageReturn = Number(((pointsDiff / entryPrice) * 100).toFixed(2));
+  const charges = Math.max(0, brokerageAndCharges || 0);
+
+  let grossProfit = 0;
+  let grossLoss = 0;
+
+  if (rawPnL >= 0) {
+    grossProfit = rawPnL;
+    grossLoss = 0;
+  } else {
+    grossProfit = 0;
+    grossLoss = Math.abs(rawPnL);
+  }
+
+  const netPnL = Number((rawPnL - charges).toFixed(2));
+
+  return {
+    grossProfit,
+    grossLoss,
+    netPnL,
+    pointsDifference: Number(pointsDiff.toFixed(2)),
+    percentageReturn,
+    turnover
+  };
+}
+
+/**
  * Calculates staff profit cut based on trade Net P&L and locked applied percentage.
  * Traders earn only on positive net profit unless configured.
  */
