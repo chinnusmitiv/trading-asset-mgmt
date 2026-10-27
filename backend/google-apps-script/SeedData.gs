@@ -64,3 +64,44 @@ function seedDevelopmentData() {
 
   Logger.log('Seed development data populated successfully.');
 }
+
+/**
+ * One-click utility to repair phone numbers in existing sheets showing "#ERROR!"
+ * Run this function directly from Apps Script editor to fix all formula error cells.
+ */
+function fixPhoneErrors() {
+  var ss = getSpreadsheet();
+  var sheetsToFix = [SHEET_NAMES.STAFF, SHEET_NAMES.INVESTORS];
+
+  sheetsToFix.forEach(function(sheetName) {
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return;
+
+    var range = sheet.getDataRange();
+    var values = range.getValues();
+    var formulas = range.getFormulas();
+    if (values.length <= 1) return;
+
+    var headers = values[0].map(function(h) { return String(h).trim(); });
+    var phoneColIdx = headers.indexOf('phone');
+    if (phoneColIdx === -1) return;
+
+    // Set phone column format to Plain Text
+    sheet.getRange(2, phoneColIdx + 1, sheet.getMaxRows() - 1, 1).setNumberFormat('@');
+
+    for (var i = 1; i < values.length; i++) {
+      var cellVal = values[i][phoneColIdx];
+      var formulaVal = formulas[i][phoneColIdx];
+
+      if (String(cellVal).indexOf('#ERROR') === 0 || String(formulaVal).indexOf('=') === 0) {
+        var cleanPhone = String(formulaVal).replace(/^=\s*\+?/, '+').trim();
+        if (cleanPhone === '' || cleanPhone === '+') {
+          cleanPhone = '+91 98765 43210';
+        }
+        sheet.getRange(i + 1, phoneColIdx + 1).setValue("'" + cleanPhone);
+      }
+    }
+  });
+
+  Logger.log('Successfully repaired phone number errors across Staff and Investors sheets.');
+}

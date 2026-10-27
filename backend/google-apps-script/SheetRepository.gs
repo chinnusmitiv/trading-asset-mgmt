@@ -43,10 +43,12 @@ function getSheet(sheetName) {
  */
 function readRows(sheetName) {
   var sheet = getSheet(sheetName);
-  var data = sheet.getDataRange().getValues();
+  var range = sheet.getDataRange();
+  var data = range.getValues();
   if (data.length <= 1) return [];
 
   var headers = data[0].map(function(h) { return String(h).trim(); });
+  var formulas = range.getFormulas();
   var rows = [];
 
   for (var i = 1; i < data.length; i++) {
@@ -58,7 +60,13 @@ function readRows(sheetName) {
     for (var j = 0; j < headers.length; j++) {
       var header = headers[j];
       if (header) {
-        item[header] = rowData[j];
+        var val = rowData[j];
+        // If Google Sheets shows #ERROR! for a formula parse error (e.g. from +91...)
+        if (String(val).indexOf('#ERROR') === 0 && formulas && formulas[i] && formulas[i][j]) {
+          var rawFormula = String(formulas[i][j]).trim();
+          val = rawFormula.replace(/^=\s*\+?/, '+').trim();
+        }
+        item[header] = val;
       }
     }
     rows.push(item);
@@ -91,6 +99,10 @@ function appendRow(sheetName, recordObj) {
   for (var j = 0; j < headers.length; j++) {
     var key = headers[j];
     var val = recordObj[key];
+    // Prevent Google Sheets from interpreting phone numbers (+91...) or expressions as formulas
+    if (typeof val === 'string' && (val.indexOf('+') === 0 || val.indexOf('=') === 0)) {
+      val = "'" + val;
+    }
     newRow.push(val !== undefined && val !== null ? val : '');
   }
 
@@ -125,7 +137,11 @@ function updateRow(sheetName, keyField, keyValue, updatedFields) {
   for (var k in updatedFields) {
     var colIndex = headers.indexOf(k);
     if (colIndex !== -1) {
-      sheet.getRange(targetRowIndex, colIndex + 1).setValue(updatedFields[k]);
+      var val = updatedFields[k];
+      if (typeof val === 'string' && (val.indexOf('+') === 0 || val.indexOf('=') === 0)) {
+        val = "'" + val;
+      }
+      sheet.getRange(targetRowIndex, colIndex + 1).setValue(val);
     }
   }
 

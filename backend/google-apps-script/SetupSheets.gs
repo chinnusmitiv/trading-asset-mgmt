@@ -36,6 +36,16 @@ function initializeDatabaseSheets() {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#1E293B').setFontColor('#F8FAFC');
     sheet.setFrozenRows(1);
+
+    // Format phone column as Plain Text so leading +91 is never parsed as a formula
+    var phoneIdx = headers.indexOf('phone');
+    if (phoneIdx !== -1 && sheet.getMaxRows() > 1) {
+      sheet.getRange(2, phoneIdx + 1, sheet.getMaxRows() - 1, 1).setNumberFormat('@');
+    }
+    var acctIdx = headers.indexOf('account_number_masked');
+    if (acctIdx !== -1 && sheet.getMaxRows() > 1) {
+      sheet.getRange(2, acctIdx + 1, sheet.getMaxRows() - 1, 1).setNumberFormat('@');
+    }
   }
 
   Logger.log('Successfully initialized all 17 database tabs.');

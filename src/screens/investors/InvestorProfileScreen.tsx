@@ -39,6 +39,7 @@ import {
 import { formatCurrency } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { maskBankAccount } from '../../utils/masking';
+import { formatPhoneNumber } from '../../utils/phone';
 import {
   calculateOutstandingPrincipal,
   calculateInvestorProfitPaid,
@@ -602,7 +603,7 @@ export const InvestorProfileScreen: React.FC = () => {
               <View style={styles.contactGrid}>
                 <TouchableOpacity style={styles.contactItem} onPress={() => handleCallPhone(investor.phone)} activeOpacity={0.7}>
                   <Text style={styles.contactLabel}>Phone Number</Text>
-                  <Text style={[styles.contactValue, { color: THEME.colors.accent.indigo }]}>📞 {investor.phone}</Text>
+                  <Text style={[styles.contactValue, { color: THEME.colors.accent.indigo }]}>📞 {formatPhoneNumber(investor.phone)}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.contactItem} onPress={() => handleSendEmail(investor.email)} activeOpacity={0.7}>
                   <Text style={styles.contactLabel}>Email Address</Text>

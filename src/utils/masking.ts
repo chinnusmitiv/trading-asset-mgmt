@@ -18,7 +18,10 @@ export function maskBankAccount(accountNumber: string | null | undefined): strin
  */
 export function maskPhoneNumber(phone: string | null | undefined): string {
   if (!phone) return '—';
-  const str = String(phone);
+  const str = String(phone).trim();
+  if (str.startsWith('#ERROR') || str.startsWith('#REF') || str.startsWith('#VALUE') || str.startsWith('#NAME')) {
+    return 'Not Set';
+  }
   if (str.length < 8) return str;
   const prefix = str.slice(0, 6);
   const suffix = str.slice(-3);

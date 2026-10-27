@@ -29,6 +29,7 @@ import { useAuth } from '../../store/AuthContext';
 import { Staff, StaffBank, Trade, StaffCommission, StaffRole, StaffStatus } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
+import { formatPhoneNumber, isValidPhoneNumber, sanitizePhoneForStorage } from '../../utils/phone';
 
 const QUICK_BANKS = ['HDFC Bank', 'ICICI Bank', 'State Bank of India', 'Axis Bank', 'Kotak Mahindra Bank', 'IndusInd Bank'];
 
@@ -109,7 +110,9 @@ export const StaffDetailsScreen: React.FC = () => {
     if (!staff) return;
     setEditForm({
       name: staff.name,
-      phone: staff.phone,
+      phone: formatPhoneNumber(staff.phone) === 'Not Set' || formatPhoneNumber(staff.phone) === '—'
+        ? '+91 '
+        : formatPhoneNumber(staff.phone),
       email: staff.email,
       role: staff.role,
       department: staff.department,
@@ -125,7 +128,9 @@ export const StaffDetailsScreen: React.FC = () => {
   const handleSaveEdit = async () => {
     const errs: Record<string, string> = {};
     if (!editForm.name.trim()) errs.name = 'Full legal name is required';
-    if (!editForm.phone.trim()) errs.phone = 'Phone number is required';
+    if (!editForm.phone.trim() || !isValidPhoneNumber(editForm.phone)) {
+      errs.phone = 'Valid 10-digit phone number is required (e.g. +91 98765 43210)';
+    }
     if (!editForm.email.trim() || !editForm.email.includes('@')) errs.email = 'Valid email is required';
     if (editForm.tradingPercentage < 0 || editForm.tradingPercentage > 100) {
       errs.tradingPercentage = 'Percentage must be between 0% and 100%';
@@ -140,7 +145,7 @@ export const StaffDetailsScreen: React.FC = () => {
     try {
       const updated = await repository.updateStaff(staffId, {
         name: editForm.name.trim(),
-        phone: editForm.phone.trim(),
+        phone: sanitizePhoneForStorage(editForm.phone),
         email: editForm.email.trim(),
         role: editForm.role,
         department: editForm.department.trim(),
@@ -268,8 +273,8 @@ export const StaffDetailsScreen: React.FC = () => {
 
   // Launch device phone dialer
   const handleCallPhone = (phone?: string) => {
-    if (!phone || !phone.trim()) {
-      Alert.alert('Notice', 'No contact phone number available for this staff member.');
+    if (!phone || !isValidPhoneNumber(phone)) {
+      Alert.alert('Notice', 'No valid contact phone number available for this staff member.');
       return;
     }
     const cleanPhone = phone.replace(/[^0-9+]/g, '');
@@ -347,7 +352,7 @@ export const StaffDetailsScreen: React.FC = () => {
             onPress={() => handleCallPhone(staff.phone)}
             activeOpacity={0.7}
           >
-            <Text style={styles.contactText}>📞 {staff.phone}</Text>
+            <Text style={styles.contactText}>📞 {formatPhoneNumber(staff.phone)}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.contactBtn}
@@ -680,7 +685,7 @@ export const StaffDetailsScreen: React.FC = () => {
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Phone:</Text>
                 <TouchableOpacity onPress={() => handleCallPhone(staff.phone)} activeOpacity={0.7}>
-                  <Text style={[styles.infoValue, styles.contactLink]}>📞 {staff.phone}</Text>
+                  <Text style={[styles.infoValue, styles.contactLink]}>📞 {formatPhoneNumber(staff.phone)}</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.infoRow}>

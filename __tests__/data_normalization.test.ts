@@ -103,6 +103,35 @@ describe('Data Normalization Utility', () => {
     expect(normalizeAppsScriptResponse(42)).toBe(42);
     expect(normalizeAppsScriptResponse('test')).toBe('test');
   });
+
+  it('normalizes phone number and handles spreadsheet #ERROR! strings gracefully', () => {
+    const errorStaff = {
+      staff_id: 'STAFF-1',
+      name: 'Trader One',
+      phone: '#ERROR!'
+    };
+
+    const normalizedError = normalizeAppsScriptResponse(errorStaff);
+    expect(normalizedError.phone).toBe('Not Set');
+
+    const numericStaff = {
+      staff_id: 'STAFF-2',
+      name: 'Trader Two',
+      phone: 9876543210
+    };
+
+    const normalizedNumeric = normalizeAppsScriptResponse(numericStaff);
+    expect(normalizedNumeric.phone).toBe('+91 98765 43210');
+
+    const cleanStaff = {
+      staff_id: 'STAFF-3',
+      name: 'Trader Three',
+      phone: "'+91 98765 43210'"
+    };
+
+    const normalizedClean = normalizeAppsScriptResponse(cleanStaff);
+    expect(normalizedClean.phone).toBe('+91 98765 43210');
+  });
 });
 
 describe('ApiClient automatic response normalization', () => {
@@ -130,5 +159,91 @@ describe('ApiClient automatic response normalization', () => {
     expect(res.data[0].investorId).toBe('INV-10');
     expect(res.data[0].joiningDate).toBe('2026-01-01');
     expect(res.data[0].investor_id).toBe('INV-10');
+  });
+});
+
+import { AppsScriptRepository } from '../src/repositories/appsScriptRepository';
+
+describe('AppsScriptRepository resilient fallbacks', () => {
+  it('gracefully composes getStaffDetails if staff.details action is unsupported by backend', async () => {
+    const repo = new AppsScriptRepository('https://mock-gas-url.internal');
+
+    // Mock fetch so that:
+    // - 'staff.details' returns error "Unsupported action: staff.details"
+    // - 'staff.list' returns staff array
+    // - 'trades.list' returns trades array
+    // - 'commissions.list' returns empty array
+    // - 'staff.banks.list' returns empty array
+    (globalThis as any).fetch = jest.fn().mockImplementation(async (_url: string, opts: any) => {
+      const body = JSON.parse(opts.body);
+      const action = body.action;
+
+      if (action === 'staff.details') {
+        return {
+          ok: true,
+          json: async () => ({
+            success: false,
+            message: 'Unsupported action: staff.details',
+            data: null
+          })
+        };
+      }
+
+      if (action === 'staff.list') {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: [
+              {
+                staff_id: 'STAFF-100',
+                name: 'Trader Alex',
+                phone: '+91 98765 00000',
+                role: 'Trader',
+                department: 'Trading Desk',
+                trading_percentage: 20
+              }
+            ]
+          })
+        };
+      }
+
+      if (action === 'trades.list') {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: [
+              {
+                trade_id: 'TRD-1',
+                staff_id: 'STAFF-100',
+                asset: 'NIFTY',
+                net_pnl: 10000,
+                staff_share: 2000,
+                company_share: 8000
+              }
+            ]
+          })
+        };
+      }
+
+      return {
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: []
+        })
+      };
+    });
+
+    const details = await repo.getStaffDetails('STAFF-100');
+
+    expect(details.staff).toBeDefined();
+    expect(details.staff.name).toBe('Trader Alex');
+    expect(details.trades.length).toBe(1);
+    expect(details.metrics.totalTrades).toBe(1);
+    expect(details.metrics.winningTrades).toBe(1);
+    expect(details.metrics.totalNetPnL).toBe(10000);
+    expect(details.metrics.totalStaffShare).toBe(2000);
   });
 });

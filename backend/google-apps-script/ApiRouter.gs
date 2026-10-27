@@ -195,9 +195,114 @@ function dispatchAction(action, payload, token, requestId) {
         user: createdUser
       };
 
+    case 'staff.get':
+      assertPermission(user, 'VIEW_STAFF');
+      var staffMember = findByField(SHEET_NAMES.STAFF, 'staff_id', payload.staffId);
+      if (!staffMember) throw new Error('Staff member not found: ' + payload.staffId);
+      return staffMember;
+
+    case 'staff.details':
+      assertPermission(user, 'VIEW_STAFF');
+      var member = findByField(SHEET_NAMES.STAFF, 'staff_id', payload.staffId);
+      if (!member) throw new Error('Staff member not found: ' + payload.staffId);
+      var allTrades = readRows(SHEET_NAMES.TRADES);
+      var staffTrades = allTrades.filter(function(t) { return t.staff_id === payload.staffId; });
+      var allCommissions = readRows(SHEET_NAMES.STAFF_COMMISSIONS);
+      var staffCommissions = allCommissions.filter(function(c) { return c.staff_id === payload.staffId; });
+
+      var totalNetPnL = 0;
+      var totalStaffShare = 0;
+      var totalCompanyShare = 0;
+      var winningTrades = 0;
+
+      staffTrades.forEach(function(t) {
+        var pnl = Number(t.net_pnl || 0);
+        var staffShare = Number(t.staff_share || 0);
+        var companyShare = Number(t.company_share || 0);
+        totalNetPnL += pnl;
+        totalStaffShare += staffShare;
+        totalCompanyShare += companyShare;
+        if (pnl > 0) winningTrades++;
+      });
+
+      var winRate = staffTrades.length > 0 ? (winningTrades / staffTrades.length) * 100 : 0;
+
+      var staffBanks = [];
+      var ss = getSpreadsheet();
+      var staffBankSheet = ss.getSheetByName('Staff_Bank');
+      if (staffBankSheet) {
+        staffBanks = readRows('Staff_Bank').filter(function(b) { return b.staff_id === payload.staffId; });
+      }
+      var primaryBank = staffBanks.length > 0 ? (staffBanks.filter(function(b) { return b.is_primary === 'TRUE' || b.is_primary === true; })[0] || staffBanks[0]) : null;
+
+      return {
+        staff: member,
+        trades: staffTrades,
+        commissions: staffCommissions,
+        banks: staffBanks,
+        bank: primaryBank,
+        metrics: {
+          totalTrades: staffTrades.length,
+          winningTrades: winningTrades,
+          winRate: winRate,
+          totalNetPnL: totalNetPnL,
+          totalStaffShare: totalStaffShare,
+          totalCompanyShare: totalCompanyShare
+        }
+      };
+
+    case 'staff.update':
+      assertPermission(user, 'CREATE_STAFF');
+      var updatedFields = {};
+      if (payload.fields) {
+        if (payload.fields.name !== undefined) updatedFields.name = payload.fields.name;
+        if (payload.fields.phone !== undefined) updatedFields.phone = payload.fields.phone;
+        if (payload.fields.email !== undefined) updatedFields.email = payload.fields.email;
+        if (payload.fields.role !== undefined) updatedFields.role = payload.fields.role;
+        if (payload.fields.department !== undefined) updatedFields.department = payload.fields.department;
+        if (payload.fields.tradingPercentage !== undefined) updatedFields.trading_percentage = payload.fields.tradingPercentage;
+        if (payload.fields.basicSalary !== undefined) updatedFields.basic_salary = payload.fields.basicSalary;
+        if (payload.fields.status !== undefined) updatedFields.status = payload.fields.status;
+        updatedFields.updated_at = new Date().toISOString();
+      }
+      var updatedStaff = updateRow(SHEET_NAMES.STAFF, 'staff_id', payload.staffId, updatedFields);
+      logAuditEvent(user.user_id, 'STAFF_UPDATED', 'Staff', payload.staffId, null, updatedFields, 'Updated staff profile');
+      return updatedStaff;
+
+    case 'commissions.list':
+      assertPermission(user, 'VIEW_STAFF');
+      var allComms = readRows(SHEET_NAMES.STAFF_COMMISSIONS);
+      if (payload && payload.staffId) {
+        allComms = allComms.filter(function(c) { return c.staff_id === payload.staffId; });
+      }
+      if (payload && payload.period) {
+        allComms = allComms.filter(function(c) { return c.commission_period === payload.period; });
+      }
+      return allComms;
+
+    case 'staff.banks.list':
+      assertPermission(user, 'VIEW_STAFF');
+      var ss = getSpreadsheet();
+      var staffBankSheet = ss.getSheetByName('Staff_Bank');
+      if (!staffBankSheet) return [];
+      var allStaffBanks = readRows('Staff_Bank');
+      return allStaffBanks.filter(function(b) { return b.staff_id === payload.staffId; });
+
+    case 'trades.get':
+      assertPermission(user, 'VIEW_TRADES');
+      var trade = findByField(SHEET_NAMES.TRADES, 'trade_id', payload.tradeId);
+      if (!trade) throw new Error('Trade not found: ' + payload.tradeId);
+      return trade;
+
     case 'expenses.list':
       assertPermission(user, 'VIEW_EXPENSES');
       return readRows(SHEET_NAMES.EXPENSES);
+
+    case 'expenses.get':
+      assertPermission(user, 'VIEW_EXPENSES');
+      var expense = findByField(SHEET_NAMES.EXPENSES, 'expense_id', payload.expenseId);
+      if (!expense) throw new Error('Expense not found: ' + payload.expenseId);
+      return expense;
 
     case 'salaries.list':
       assertPermission(user, 'VIEW_SALARIES');
@@ -206,6 +311,12 @@ function dispatchAction(action, payload, token, requestId) {
         return allSalaries.filter(function(s) { return s.staff_id === user.staff_id; });
       }
       return allSalaries;
+
+    case 'salaries.get':
+      assertPermission(user, 'VIEW_SALARIES');
+      var salary = findByField(SHEET_NAMES.SALARIES, 'salary_id', payload.salaryId);
+      if (!salary) throw new Error('Salary not found: ' + payload.salaryId);
+      return salary;
 
     case 'audit.list':
       assertPermission(user, 'VIEW_AUDIT');

@@ -7,6 +7,8 @@
  * while retaining the original snake_case properties for complete backward/forward compatibility.
  */
 
+import { formatPhoneNumber } from './phone';
+
 export function snakeToCamel(str: string): string {
   return str.replace(/_([a-z0-9])/g, (_, char) => char.toUpperCase());
 }
@@ -41,6 +43,10 @@ export function normalizeAppsScriptResponse<T = any>(data: any): T {
 
       if (camelKey === 'isPrimary' && typeof normalizedValue === 'string') {
         result['isPrimary'] = normalizedValue.toUpperCase() === 'TRUE';
+      }
+
+      if (camelKey === 'phone' && (typeof normalizedValue === 'string' || typeof normalizedValue === 'number')) {
+        result['phone'] = formatPhoneNumber(normalizedValue);
       }
     }
 

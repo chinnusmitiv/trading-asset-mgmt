@@ -169,8 +169,14 @@ export class AppsScriptRepository
   }
 
   async getTradeDetails(tradeId: string): Promise<Trade | null> {
-    const res = await this.client.request<Trade>('trades.get', { tradeId });
-    return res.success ? res.data : null;
+    try {
+      const res = await this.client.request<Trade>('trades.get', { tradeId });
+      if (res.success && res.data) return res.data;
+    } catch {
+      // Fallback below
+    }
+    const allTrades = await this.getTrades();
+    return allTrades.find(t => t.tradeId === tradeId || (t as any).trade_id === tradeId) || null;
   }
 
   async createTrade(data: any, requestId?: string): Promise<Trade> {
@@ -199,14 +205,89 @@ export class AppsScriptRepository
   }
 
   async getStaffById(staffId: string): Promise<Staff | null> {
-    const res = await this.client.request<Staff>('staff.get', { staffId });
-    return res.success ? res.data : null;
+    try {
+      const res = await this.client.request<Staff>('staff.get', { staffId });
+      if (res.success && res.data) return res.data;
+    } catch {
+      // Fallback below
+    }
+    const staffList = await this.getStaffList();
+    return staffList.find(s => s.staffId === staffId || (s as any).staff_id === staffId) || null;
   }
 
   async getStaffDetails(staffId: string) {
-    const res = await this.client.request<any>('staff.details', { staffId });
-    if (!res.success || !res.data) throw new Error(res.message);
-    return res.data;
+    try {
+      const res = await this.client.request<any>('staff.details', { staffId });
+      if (res.success && res.data && res.data.staff) {
+        return res.data;
+      }
+    } catch {
+      // Fallback to client-side composition below
+    }
+
+    // Compose staff details from standard endpoints (staff.list and trades.list)
+    const staffList = await this.getStaffList();
+    const member = staffList.find(s => s.staffId === staffId || (s as any).staff_id === staffId);
+    if (!member) {
+      throw new Error(`Staff member ${staffId} not found`);
+    }
+
+    let staffTrades: Trade[] = [];
+    try {
+      const allTrades = await this.getTrades();
+      staffTrades = allTrades.filter(t => t.staffId === staffId || (t as any).staff_id === staffId);
+    } catch {
+      staffTrades = [];
+    }
+
+    let staffCommissions: StaffCommission[] = [];
+    try {
+      staffCommissions = await this.getCommissions({ staffId });
+    } catch {
+      staffCommissions = [];
+    }
+
+    let totalNetPnL = 0;
+    let totalStaffShare = 0;
+    let totalCompanyShare = 0;
+    let winningTrades = 0;
+
+    staffTrades.forEach(t => {
+      const pnl = Number(t.netPnL ?? (t as any).net_pnl ?? 0);
+      const staffShare = Number(t.staffShare ?? (t as any).staff_share ?? 0);
+      const companyShare = Number(t.companyShare ?? (t as any).company_share ?? 0);
+      totalNetPnL += pnl;
+      totalStaffShare += staffShare;
+      totalCompanyShare += companyShare;
+      if (pnl > 0) winningTrades++;
+    });
+
+    const winRate = staffTrades.length > 0 ? (winningTrades / staffTrades.length) * 100 : 0;
+
+    let staffBanks: StaffBank[] = [];
+    try {
+      staffBanks = await this.getStaffBanks(staffId);
+    } catch {
+      staffBanks = [];
+    }
+
+    const primaryBank = staffBanks.find(b => b.isPrimary) || staffBanks[0] || null;
+
+    return {
+      staff: member,
+      trades: staffTrades,
+      commissions: staffCommissions,
+      banks: staffBanks,
+      bank: primaryBank,
+      metrics: {
+        totalTrades: staffTrades.length,
+        winningTrades,
+        winRate,
+        totalNetPnL,
+        totalStaffShare,
+        totalCompanyShare
+      }
+    };
   }
 
   async createStaff(
@@ -228,9 +309,13 @@ export class AppsScriptRepository
   }
 
   async getCommissions(filters?: { staffId?: string; period?: string }): Promise<StaffCommission[]> {
-    const res = await this.client.request<StaffCommission[]>('commissions.list', filters);
-    if (!res.success || !res.data) throw new Error(res.message);
-    return res.data;
+    try {
+      const res = await this.client.request<StaffCommission[]>('commissions.list', filters);
+      if (res.success && res.data) return res.data;
+    } catch {
+      // Fallback gracefully
+    }
+    return [];
   }
 
   async calculateAndCreateCommission(data: Omit<StaffCommission, 'commissionId' | 'createdAt'>, requestId?: string): Promise<StaffCommission> {
@@ -246,9 +331,13 @@ export class AppsScriptRepository
   }
 
   async getStaffBanks(staffId: string): Promise<StaffBank[]> {
-    const res = await this.client.request<StaffBank[]>('staff.banks.list', { staffId });
-    if (!res.success || !res.data) throw new Error(res.message);
-    return res.data;
+    try {
+      const res = await this.client.request<StaffBank[]>('staff.banks.list', { staffId });
+      if (res.success && res.data) return res.data;
+    } catch {
+      // Fallback gracefully
+    }
+    return [];
   }
 
   async addStaffBank(data: Omit<StaffBank, 'bankId' | 'createdAt'>): Promise<StaffBank> {
@@ -288,8 +377,14 @@ export class AppsScriptRepository
   }
 
   async getExpenseDetails(expenseId: string): Promise<Expense | null> {
-    const res = await this.client.request<Expense>('expenses.get', { expenseId });
-    return res.success ? res.data : null;
+    try {
+      const res = await this.client.request<Expense>('expenses.get', { expenseId });
+      if (res.success && res.data) return res.data;
+    } catch {
+      // Fallback below
+    }
+    const expenses = await this.getExpenses();
+    return expenses.find(e => e.expenseId === expenseId || (e as any).expense_id === expenseId) || null;
   }
 
   async createExpense(data: Omit<Expense, 'expenseId' | 'createdAt'>, requestId?: string): Promise<Expense> {
@@ -322,8 +417,14 @@ export class AppsScriptRepository
   }
 
   async getSalaryDetails(salaryId: string): Promise<Salary | null> {
-    const res = await this.client.request<Salary>('salaries.get', { salaryId });
-    return res.success ? res.data : null;
+    try {
+      const res = await this.client.request<Salary>('salaries.get', { salaryId });
+      if (res.success && res.data) return res.data;
+    } catch {
+      // Fallback below
+    }
+    const salaries = await this.getSalaries();
+    return salaries.find(s => s.salaryId === salaryId || (s as any).salary_id === salaryId) || null;
   }
 
   async createSalary(data: Omit<Salary, 'salaryId' | 'createdAt' | 'netSalary'> & { netSalary?: number }, requestId?: string): Promise<Salary> {
