@@ -8,7 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
 import { AppHeader } from '../../components/common/AppHeader';
 import { KpiCard } from '../../components/common/KpiCard';
@@ -20,6 +20,7 @@ import { DashboardSummary } from '../../types';
 import { formatCompactCurrency, formatCurrency } from '../../utils/currency';
 
 export const DashboardScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const { user, repository } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -105,10 +106,24 @@ export const DashboardScreen: React.FC = () => {
         {summary?.alerts && summary.alerts.length > 0 ? (
           <View style={styles.alertContainer}>
             {summary.alerts.map((alert, idx) => (
-              <View key={alert.id || (alert as any).alert_id || `alert-${idx}`} style={styles.alertCard}>
+              <TouchableOpacity
+                key={alert.id || (alert as any).alert_id || `alert-${idx}`}
+                style={styles.alertCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  if (alert.actionRoute === 'PaymentReminders') {
+                    navigation.navigate('PaymentReminders');
+                  } else if (alert.actionRoute === 'Investors') {
+                    navigation.navigate('Investors');
+                  } else if (alert.actionRoute === 'Finance') {
+                    navigation.navigate('Finance');
+                  }
+                }}
+              >
                 <Text style={styles.alertIcon}>⚡</Text>
-                <Text style={styles.alertText}>{alert.title}</Text>
-              </View>
+                <Text style={[styles.alertText, { flex: 1 }]}>{alert.title}</Text>
+                <Text style={{ fontSize: 13, color: THEME.colors.text.muted, marginLeft: 6 }}>↗</Text>
+              </TouchableOpacity>
             ))}
           </View>
         ) : null}
@@ -200,10 +215,11 @@ export const DashboardScreen: React.FC = () => {
             value={summary?.investors.profitPaidMonth || 0}
             compact
             accentColor={THEME.colors.accent.amber}
-            deltaText={`${summary?.investors.pendingPaymentsCount || 0} Pending Disbursements`}
+            deltaText={`${summary?.investors.pendingPaymentsCount || 0} Pending Disbursements • View ↗`}
             deltaType={
               (summary?.investors.pendingPaymentsCount || 0) > 0 ? 'negative' : 'neutral'
             }
+            onPress={() => navigation.navigate('PaymentReminders')}
           />
         </View>
 

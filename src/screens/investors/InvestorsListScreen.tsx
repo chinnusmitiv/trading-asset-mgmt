@@ -118,11 +118,19 @@ export const InvestorsListScreen: React.FC = () => {
         user={user}
         rightAction={
           user?.role === 'Admin' || user?.role === 'Manager' ? (
-            <Button
-              title="+ Add Investor"
-              size="sm"
-              onPress={() => navigation.navigate('AddInvestor')}
-            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Button
+                title="⏰ Due"
+                size="sm"
+                variant="outline"
+                onPress={() => navigation.navigate('PaymentReminders')}
+              />
+              <Button
+                title="+ Add"
+                size="sm"
+                onPress={() => navigation.navigate('AddInvestor')}
+              />
+            </View>
           ) : undefined
         }
       />

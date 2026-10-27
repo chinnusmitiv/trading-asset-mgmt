@@ -268,6 +268,112 @@ function dispatchAction(action, payload, token, requestId) {
         documentId: docId
       };
 
+    case 'payments.reminders':
+      assertPermission(user, 'VIEW_INVESTORS');
+      var targetMonth = payload && payload.month ? payload.month : new Date().toISOString().slice(0, 7);
+      var todayIso = new Date().toISOString().split('T')[0];
+      var allInvestors = readRows(SHEET_NAMES.INVESTORS);
+      var allInvestments = readRows(SHEET_NAMES.INVESTMENTS);
+      var allPayments = readRows(SHEET_NAMES.INVESTOR_PAYMENTS);
+      var allBanks = readRows(SHEET_NAMES.INVESTOR_BANK);
+
+      var reminders = [];
+      allInvestments.forEach(function(inv) {
+        if (inv.status !== 'Active') return;
+        var investor = null;
+        for (var i = 0; i < allInvestors.length; i++) {
+          if (allInvestors[i].investor_id === inv.investor_id) {
+            investor = allInvestors[i];
+            break;
+          }
+        }
+        if (!investor) return;
+
+        var bank = null;
+        for (var b = 0; b < allBanks.length; b++) {
+          if (allBanks[b].investor_id === inv.investor_id) {
+            bank = allBanks[b];
+            if (bank.is_primary) break;
+          }
+        }
+
+        var existingPayment = null;
+        for (var p = 0; p < allPayments.length; p++) {
+          if (allPayments[p].investment_id === inv.investment_id &&
+              allPayments[p].payment_month === targetMonth &&
+              allPayments[p].status === 'Paid') {
+            existingPayment = allPayments[p];
+            break;
+          }
+        }
+
+        var cycleDay = 1;
+        if (inv.investment_date) {
+          var pDate = new Date(inv.investment_date);
+          if (!isNaN(pDate.getTime())) {
+            cycleDay = pDate.getDate();
+          }
+        }
+        var yearParts = targetMonth.split('-');
+        var y = parseInt(yearParts[0], 10);
+        var m = parseInt(yearParts[1], 10);
+        var maxDays = new Date(y, m, 0).getDate();
+        var effectiveDay = Math.min(cycleDay, maxDays);
+        var padD = ('0' + effectiveDay).slice(-2);
+        var padM = ('0' + m).slice(-2);
+        var dueDate = y + '-' + padM + '-' + padD;
+
+        var todayTime = new Date(todayIso + 'T00:00:00Z').getTime();
+        var dueDateTime = new Date(dueDate + 'T00:00:00Z').getTime();
+        var diffDays = Math.round((todayTime - dueDateTime) / (1000 * 60 * 60 * 24));
+
+        var status = 'Upcoming';
+        var statusLabel = 'Due in ' + Math.abs(diffDays) + ' days';
+        if (existingPayment) {
+          status = 'Paid';
+          statusLabel = 'Paid on ' + existingPayment.payment_date;
+        } else if (diffDays > 0) {
+          status = 'Overdue';
+          statusLabel = 'Overdue by ' + diffDays + ' day' + (diffDays > 1 ? 's' : '');
+        } else if (diffDays === 0) {
+          status = 'Due_Today';
+          statusLabel = 'Due Today';
+        }
+
+        reminders.push({
+          investmentId: inv.investment_id,
+          investorId: inv.investor_id,
+          investorName: investor.name,
+          investorPhone: investor.phone,
+          principalAmount: Number(inv.principal_amount || 0),
+          returnPercentage: Number(inv.return_percentage || 0),
+          monthlyReturnExpected: Number(inv.monthly_return || 0),
+          paymentFrequency: inv.payment_frequency || 'Monthly',
+          investmentDate: inv.investment_date,
+          cycleDay: effectiveDay,
+          dueDate: dueDate,
+          status: status,
+          daysDifference: diffDays,
+          statusLabel: statusLabel,
+          paidAmount: existingPayment ? Number(existingPayment.total_amount || 0) : undefined,
+          paymentId: existingPayment ? existingPayment.payment_id : undefined,
+          paymentDate: existingPayment ? existingPayment.payment_date : undefined,
+          bankName: bank ? bank.bank_name : undefined,
+          accountNumberMasked: bank ? bank.account_number_masked : undefined
+        });
+      });
+
+      var statusPriority = { Overdue: 1, Due_Today: 2, Upcoming: 3, Paid: 4 };
+      reminders.sort(function(a, b) {
+        var pDiff = (statusPriority[a.status] || 99) - (statusPriority[b.status] || 99);
+        if (pDiff !== 0) return pDiff;
+        if (a.status === 'Overdue') return b.daysDifference - a.daysDifference;
+        if (a.status === 'Upcoming') return b.daysDifference - a.daysDifference;
+        return a.cycleDay - b.cycleDay;
+      });
+
+      return reminders;
+
     case 'documents.list':
       assertPermission(user, 'VIEW_INVESTORS');
       var allDocs = readRows(SHEET_NAMES.INVESTOR_DOCUMENTS);
@@ -827,10 +933,39 @@ function handleDashboardSummary(period, user) {
     }
   });
 
-  var netCompanyProfit = tradingPnL - (totalMonthlyReturnExpected + totalExpenses + totalSalaries);
+  var currentMonth = period || new Date().toISOString().slice(0, 7);
+  var activeInvestments = investments.filter(function(i) { return i.status === 'Active'; });
+  var pendingDisbursements = activeInvestments.filter(function(inv) {
+    for (var p = 0; p < payments.length; p++) {
+      if (payments[p].investment_id === inv.investment_id &&
+          payments[p].payment_month === currentMonth &&
+          payments[p].status === 'Paid') {
+        return false;
+      }
+    }
+    return true;
+  });
+  var pendingCount = pendingDisbursements.length;
+
+  var alerts = [];
+  if (pendingCount > 0) {
+    alerts.push({
+      id: 'ALT-DUE-PAYOUTS',
+      type: 'warning',
+      title: '⚠️ ' + pendingCount + ' Investor disbursement' + (pendingCount > 1 ? 's' : '') + ' due for ' + currentMonth,
+      actionRoute: 'PaymentReminders'
+    });
+  } else {
+    alerts.push({
+      id: 'ALT-1',
+      type: 'info',
+      title: 'All investor disbursements reconciled for ' + currentMonth,
+      actionRoute: 'PaymentReminders'
+    });
+  }
 
   return {
-    period: period || 'Current',
+    period: currentMonth,
     capital: {
       total: totalPrincipal,
       deployed: totalPrincipal * 0.65,
@@ -838,10 +973,10 @@ function handleDashboardSummary(period, user) {
       utilizationPercentage: 65.0
     },
     investors: {
-      activeCount: investors.filter(function(i) { return i.status === 'Active'; }).length,
+      activeCount: activeInvestments.length,
       totalPrincipal: totalPrincipal,
       profitPaidMonth: totalMonthlyReturnExpected,
-      pendingPaymentsCount: 0
+      pendingPaymentsCount: pendingCount
     },
     trading: {
       monthlyPnL: tradingPnL,
@@ -854,9 +989,7 @@ function handleDashboardSummary(period, user) {
       salariesMonth: totalSalaries,
       netCompanyProfit: netCompanyProfit
     },
-    alerts: [
-      { id: 'ALT-1', type: 'info', title: 'Operational system healthy', actionRoute: 'Dashboard' }
-    ]
+    alerts: alerts
   };
 }
 

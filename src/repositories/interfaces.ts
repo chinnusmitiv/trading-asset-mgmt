@@ -19,7 +19,8 @@ import {
   AuditLog,
   DashboardSummary,
   CreateStaffLoginCredentials,
-  UserRole
+  UserRole,
+  InvestorPaymentReminderItem
 } from '../types';
 
 export interface IAuthRepository {
@@ -66,6 +67,7 @@ export interface IInvestorRepository {
     pdfBase64?: string;
     htmlContent?: string;
   }): Promise<ReceiptUploadResult>;
+  getPaymentReminders(month?: string): Promise<InvestorPaymentReminderItem[]>;
 }
 
 export interface ReceiptUploadResult {

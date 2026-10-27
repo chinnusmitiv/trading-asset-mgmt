@@ -293,3 +293,27 @@ export interface ApiResponse<T = any> {
   requestId: string;
   timestamp?: string;
 }
+
+export type PaymentDueStatus = 'Overdue' | 'Due_Today' | 'Upcoming' | 'Paid';
+
+export interface InvestorPaymentReminderItem {
+  investmentId: string;
+  investorId: string;
+  investorName: string;
+  investorPhone: string;
+  principalAmount: number;
+  returnPercentage: number;
+  monthlyReturnExpected: number;
+  paymentFrequency: PaymentFrequency;
+  investmentDate: string;
+  cycleDay: number;
+  dueDate: string;
+  status: PaymentDueStatus;
+  daysDifference: number;
+  statusLabel: string;
+  paidAmount?: number;
+  paymentId?: string;
+  paymentDate?: string;
+  bankName?: string;
+  accountNumberMasked?: string;
+}

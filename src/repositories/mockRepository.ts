@@ -31,7 +31,8 @@ import {
   AuditLog,
   DashboardSummary,
   CreateStaffLoginCredentials,
-  UserRole
+  UserRole,
+  InvestorPaymentReminderItem
 } from '../types';
 
 import {
@@ -41,7 +42,8 @@ import {
   calculateROI,
   calculateNetSalary,
   calculateCompanyNetProfit,
-  calculateInvestorMonthlyReturn
+  calculateInvestorMonthlyReturn,
+  calculatePaymentDueStatus
 } from '../utils/calculations';
 
 export class MockRepository
@@ -522,6 +524,87 @@ export class MockRepository
     };
   }
 
+  async getPaymentReminders(month?: string): Promise<InvestorPaymentReminderItem[]> {
+    const targetMonth = month || new Date().toISOString().slice(0, 7);
+    const todayIso = new Date().toISOString().split('T')[0];
+
+    const activeInvestments = this.investments.filter(inv => inv.status === 'Active');
+    const reminders: InvestorPaymentReminderItem[] = [];
+
+    for (const inv of activeInvestments) {
+      const invInvestor = this.investors.find(i => i.investorId === inv.investorId);
+      if (!invInvestor) continue;
+
+      const bank = this.banks.find(b => b.investorId === inv.investorId && b.isPrimary) || this.banks.find(b => b.investorId === inv.investorId);
+
+      const existingPayment = this.payments.find(
+        p => p.investmentId === inv.investmentId && p.paymentMonth === targetMonth && p.status === 'Paid'
+      );
+
+      const dueInfo = calculatePaymentDueStatus(inv.investmentDate, targetMonth, todayIso);
+
+      if (existingPayment) {
+        reminders.push({
+          investmentId: inv.investmentId,
+          investorId: inv.investorId,
+          investorName: invInvestor.name,
+          investorPhone: invInvestor.phone,
+          principalAmount: inv.principalAmount,
+          returnPercentage: inv.returnPercentage,
+          monthlyReturnExpected: inv.monthlyReturn,
+          paymentFrequency: inv.paymentFrequency,
+          investmentDate: inv.investmentDate,
+          cycleDay: dueInfo.cycleDay,
+          dueDate: dueInfo.dueDate,
+          status: 'Paid',
+          daysDifference: dueInfo.daysDifference,
+          statusLabel: `Paid on ${existingPayment.paymentDate}`,
+          paidAmount: existingPayment.totalAmount,
+          paymentId: existingPayment.paymentId,
+          paymentDate: existingPayment.paymentDate,
+          bankName: bank?.bankName,
+          accountNumberMasked: bank?.accountNumberMasked
+        });
+      } else {
+        reminders.push({
+          investmentId: inv.investmentId,
+          investorId: inv.investorId,
+          investorName: invInvestor.name,
+          investorPhone: invInvestor.phone,
+          principalAmount: inv.principalAmount,
+          returnPercentage: inv.returnPercentage,
+          monthlyReturnExpected: inv.monthlyReturn,
+          paymentFrequency: inv.paymentFrequency,
+          investmentDate: inv.investmentDate,
+          cycleDay: dueInfo.cycleDay,
+          dueDate: dueInfo.dueDate,
+          status: dueInfo.status,
+          daysDifference: dueInfo.daysDifference,
+          statusLabel: dueInfo.statusLabel,
+          bankName: bank?.bankName,
+          accountNumberMasked: bank?.accountNumberMasked
+        });
+      }
+    }
+
+    const statusPriority: Record<string, number> = {
+      Overdue: 1,
+      Due_Today: 2,
+      Upcoming: 3,
+      Paid: 4
+    };
+
+    reminders.sort((a, b) => {
+      const pDiff = (statusPriority[a.status] || 99) - (statusPriority[b.status] || 99);
+      if (pDiff !== 0) return pDiff;
+      if (a.status === 'Overdue') return b.daysDifference - a.daysDifference;
+      if (a.status === 'Upcoming') return b.daysDifference - a.daysDifference;
+      return a.cycleDay - b.cycleDay;
+    });
+
+    return reminders;
+  }
+
   // --- Trade Methods ---
   async getTrades(filters?: { staffId?: string; status?: string; asset?: string }): Promise<Trade[]> {
     let list = [...this.trades];
@@ -919,8 +1002,15 @@ export class MockRepository
       0
     );
 
+    const currentMonth = period || new Date().toISOString().slice(0, 7);
+    const activeInvestments = this.investments.filter(i => i.status === 'Active');
+    const unpaidInvestments = activeInvestments.filter(inv => {
+      return !this.payments.some(p => p.investmentId === inv.investmentId && p.paymentMonth === currentMonth && p.status === 'Paid');
+    });
+    const pendingCount = unpaidInvestments.length;
+
     return {
-      period: period || '2026-09',
+      period: currentMonth,
       capital: {
         total: totalPrincipal,
         deployed: totalPrincipal * 0.65,
@@ -931,7 +1021,7 @@ export class MockRepository
         activeCount: this.investors.filter(i => i.status === 'Active').length,
         totalPrincipal,
         profitPaidMonth: totalMonthlyReturnExpected,
-        pendingPaymentsCount: this.payments.filter(p => p.status === 'Pending').length
+        pendingPaymentsCount: pendingCount
       },
       trading: {
         monthlyPnL: tradingPnL,
@@ -945,8 +1035,17 @@ export class MockRepository
         netCompanyProfit
       },
       alerts: [
-        { id: 'ALT-1', type: 'info', title: '1 Pending investor payment for Sep 2026', actionRoute: 'Investors' },
-        { id: 'ALT-2', type: 'info', title: '1 Office expense awaiting approval', actionRoute: 'Finance' }
+        ...(pendingCount > 0
+          ? [
+              {
+                id: 'ALT-REMINDERS',
+                type: 'warning' as const,
+                title: `⚠️ ${pendingCount} Investor disbursement${pendingCount > 1 ? 's' : ''} due for ${currentMonth}`,
+                actionRoute: 'PaymentReminders'
+              }
+            ]
+          : []),
+        { id: 'ALT-2', type: 'info' as const, title: 'Operational system reconciled', actionRoute: 'Finance' }
       ]
     };
   }

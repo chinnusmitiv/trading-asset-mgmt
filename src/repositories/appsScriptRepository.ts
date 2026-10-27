@@ -30,8 +30,10 @@ import {
   Salary,
   AuditLog,
   DashboardSummary,
-  CreateStaffLoginCredentials
+  CreateStaffLoginCredentials,
+  InvestorPaymentReminderItem
 } from '../types';
+import { calculatePaymentDueStatus } from '../utils/calculations';
 
 export class AppsScriptRepository
   implements
@@ -232,6 +234,100 @@ export class AppsScriptRepository
     const res = await this.client.request<ReceiptUploadResult>('payments.uploadReceipt', payload);
     if (!res.success || !res.data) throw new Error(res.message || 'Failed to upload receipt to Google Drive');
     return res.data;
+  }
+
+  async getPaymentReminders(month?: string): Promise<InvestorPaymentReminderItem[]> {
+    try {
+      const res = await this.client.request<InvestorPaymentReminderItem[]>('payments.reminders', { month });
+      if (res.success && Array.isArray(res.data)) {
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('Backend payments.reminders request failed, falling back to local calculation:', err);
+    }
+
+    const targetMonth = month || new Date().toISOString().slice(0, 7);
+    const todayIso = new Date().toISOString().split('T')[0];
+    const investors = await this.getInvestors();
+    const reminders: InvestorPaymentReminderItem[] = [];
+
+    for (const inv of investors) {
+      try {
+        const details = await this.getInvestorDetails(inv.investorId);
+        const activeInvestments = (details.investments || []).filter((i: Investment) => i.status === 'Active');
+        const primaryBank = details.bank || details.banks?.[0];
+
+        for (const investment of activeInvestments) {
+          const existingPayment = (details.payments || []).find(
+            (p: InvestorPayment) => p.investmentId === investment.investmentId && p.paymentMonth === targetMonth && p.status === 'Paid'
+          );
+
+          const dueInfo = calculatePaymentDueStatus(investment.investmentDate, targetMonth, todayIso);
+
+          if (existingPayment) {
+            reminders.push({
+              investmentId: investment.investmentId,
+              investorId: inv.investorId,
+              investorName: inv.name,
+              investorPhone: inv.phone,
+              principalAmount: investment.principalAmount,
+              returnPercentage: investment.returnPercentage,
+              monthlyReturnExpected: investment.monthlyReturn,
+              paymentFrequency: investment.paymentFrequency,
+              investmentDate: investment.investmentDate,
+              cycleDay: dueInfo.cycleDay,
+              dueDate: dueInfo.dueDate,
+              status: 'Paid',
+              daysDifference: dueInfo.daysDifference,
+              statusLabel: `Paid on ${existingPayment.paymentDate}`,
+              paidAmount: existingPayment.totalAmount,
+              paymentId: existingPayment.paymentId,
+              paymentDate: existingPayment.paymentDate,
+              bankName: primaryBank?.bankName,
+              accountNumberMasked: primaryBank?.accountNumberMasked
+            });
+          } else {
+            reminders.push({
+              investmentId: investment.investmentId,
+              investorId: inv.investorId,
+              investorName: inv.name,
+              investorPhone: inv.phone,
+              principalAmount: investment.principalAmount,
+              returnPercentage: investment.returnPercentage,
+              monthlyReturnExpected: investment.monthlyReturn,
+              paymentFrequency: investment.paymentFrequency,
+              investmentDate: investment.investmentDate,
+              cycleDay: dueInfo.cycleDay,
+              dueDate: dueInfo.dueDate,
+              status: dueInfo.status,
+              daysDifference: dueInfo.daysDifference,
+              statusLabel: dueInfo.statusLabel,
+              bankName: primaryBank?.bankName,
+              accountNumberMasked: primaryBank?.accountNumberMasked
+            });
+          }
+        }
+      } catch (e) {
+        // Skip individual errors
+      }
+    }
+
+    const statusPriority: Record<string, number> = {
+      Overdue: 1,
+      Due_Today: 2,
+      Upcoming: 3,
+      Paid: 4
+    };
+
+    reminders.sort((a, b) => {
+      const pDiff = (statusPriority[a.status] || 99) - (statusPriority[b.status] || 99);
+      if (pDiff !== 0) return pDiff;
+      if (a.status === 'Overdue') return b.daysDifference - a.daysDifference;
+      if (a.status === 'Upcoming') return b.daysDifference - a.daysDifference;
+      return a.cycleDay - b.cycleDay;
+    });
+
+    return reminders;
   }
 
   // --- Trades ---

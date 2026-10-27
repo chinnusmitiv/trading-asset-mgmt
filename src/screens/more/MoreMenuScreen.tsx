@@ -48,6 +48,7 @@ export const MoreMenuScreen: React.FC = () => {
         {
           title: 'FINANCIAL & OPERATIONS',
           items: [
+            { title: 'Payment Reminders', icon: '⏰', subtitle: 'Upcoming & overdue monthly payouts', route: 'PaymentReminders' },
             { title: 'Office Expenses', icon: '💳', subtitle: 'Submit and approve bills', route: 'Finance' },
             { title: 'Staff Salaries', icon: '💰', subtitle: 'Payroll calculation and slips', route: 'Finance' },
             { title: 'Document Vault', icon: '📁', subtitle: 'Agreements, KYC, Bank proofs on Drive' },

@@ -11,6 +11,7 @@ import { InvestorProfileScreen } from '../screens/investors/InvestorProfileScree
 import { AddInvestorScreen } from '../screens/investors/AddInvestorScreen';
 import { AddInvestmentScreen } from '../screens/investors/AddInvestmentScreen';
 import { RecordPaymentScreen } from '../screens/investors/RecordPaymentScreen';
+import { PaymentRemindersScreen } from '../screens/investors/PaymentRemindersScreen';
 import { AddBankScreen } from '../screens/investors/AddBankScreen';
 import { StaffDetailsScreen } from '../screens/staff/StaffDetailsScreen';
 import { AddStaffScreen } from '../screens/staff/AddStaffScreen';
@@ -99,6 +100,11 @@ export const RootNavigator: React.FC = () => {
               name="RecordPayment"
               component={RecordPaymentScreen}
               options={{ title: 'Record Disbursement' }}
+            />
+            <Stack.Screen
+              name="PaymentReminders"
+              component={PaymentRemindersScreen}
+              options={{ title: 'Payout Due Reminders' }}
             />
             <Stack.Screen
               name="AddBankDetails"

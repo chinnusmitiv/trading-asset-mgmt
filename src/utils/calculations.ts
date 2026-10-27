@@ -201,3 +201,68 @@ export function calculateWinRate(
   if (!totalTrades || totalTrades === 0) return 0;
   return Number(((winningTrades / totalTrades) * 100).toFixed(2));
 }
+
+/**
+ * Calculates due status for an investment tranche in a given target month.
+ */
+export function calculatePaymentDueStatus(
+  investmentDate: string,
+  targetMonth: string, // YYYY-MM
+  todayIso: string = new Date().toISOString().split('T')[0]
+): {
+  dueDate: string;
+  cycleDay: number;
+  status: 'Overdue' | 'Due_Today' | 'Upcoming';
+  daysDifference: number;
+  statusLabel: string;
+} {
+  const [yearStr, monthStr] = targetMonth.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+
+  let cycleDay = 1;
+  if (investmentDate) {
+    const parsedDate = new Date(investmentDate);
+    if (!isNaN(parsedDate.getTime())) {
+      cycleDay = parsedDate.getDate();
+    }
+  }
+
+  const maxDaysInMonth = new Date(year, month, 0).getDate();
+  const effectiveDay = Math.min(Math.max(1, cycleDay), maxDaysInMonth);
+
+  const padDay = ('0' + effectiveDay).slice(-2);
+  const padMonth = ('0' + month).slice(-2);
+  const dueDate = `${year}-${padMonth}-${padDay}`;
+
+  const todayTime = new Date(todayIso + 'T00:00:00Z').getTime();
+  const dueDateTime = new Date(dueDate + 'T00:00:00Z').getTime();
+  const diffDays = Math.round((todayTime - dueDateTime) / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 0) {
+    return {
+      dueDate,
+      cycleDay: effectiveDay,
+      status: 'Overdue',
+      daysDifference: diffDays,
+      statusLabel: `Overdue by ${diffDays} day${diffDays > 1 ? 's' : ''}`
+    };
+  } else if (diffDays === 0) {
+    return {
+      dueDate,
+      cycleDay: effectiveDay,
+      status: 'Due_Today',
+      daysDifference: 0,
+      statusLabel: 'Due Today'
+    };
+  } else {
+    const daysAhead = Math.abs(diffDays);
+    return {
+      dueDate,
+      cycleDay: effectiveDay,
+      status: 'Upcoming',
+      daysDifference: diffDays,
+      statusLabel: `Due in ${daysAhead} day${daysAhead > 1 ? 's' : ''}`
+    };
+  }
+}
