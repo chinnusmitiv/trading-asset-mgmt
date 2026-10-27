@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
   TouchableOpacity,
   Modal,
   ActivityIndicator,
-  Image
+  Image,
+  Linking
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
@@ -26,6 +27,7 @@ import { getCurrentMonthPeriod, formatDate } from '../../utils/date';
 import { formatPhoneNumber } from '../../utils/phone';
 import {
   generatePaymentReceiptPdf,
+  generateReceiptHtml,
   createWhatsAppReceiptMessage,
   sendReceiptOverWhatsApp,
   shareReceiptPdf,
@@ -56,7 +58,11 @@ export const RecordPaymentScreen: React.FC = () => {
   const [successModalVisible, setSuccessModalVisible] = useState<boolean>(false);
   const [recordedPayment, setRecordedPayment] = useState<InvestorPayment | null>(null);
   const [receiptPdfUri, setReceiptPdfUri] = useState<string | null>(null);
+  const [receiptDriveUrl, setReceiptDriveUrl] = useState<string | null>(null);
+  const [isUploadingToDrive, setIsUploadingToDrive] = useState<boolean>(false);
+  const [driveUploadError, setDriveUploadError] = useState<string | null>(null);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState<boolean>(false);
+  const driveUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     loadTranches();
@@ -96,6 +102,10 @@ export const RecordPaymentScreen: React.FC = () => {
     }
 
     setLoading(true);
+    driveUrlRef.current = null;
+    setReceiptDriveUrl(null);
+    setDriveUploadError(null);
+
     try {
       const requestId = 'REQ-DISB-' + Date.now();
       const payment = await repository.recordPayment(
@@ -137,11 +147,13 @@ export const RecordPaymentScreen: React.FC = () => {
         bank: bank || undefined
       };
 
-      // Automatically generate professional PDF receipt
+      // 1. Generate local PDF receipt & Base64 data
       let generatedPdf: string | null = null;
+      let generatedBase64: string | undefined = undefined;
       try {
         const pdfResult = await generatePaymentReceiptPdf(receiptPayload);
         generatedPdf = pdfResult.uri;
+        generatedBase64 = pdfResult.base64;
       } catch (pdfErr) {
         console.warn('PDF Receipt compilation error:', pdfErr);
       }
@@ -149,6 +161,32 @@ export const RecordPaymentScreen: React.FC = () => {
       setRecordedPayment(payment);
       setReceiptPdfUri(generatedPdf);
       setSuccessModalVisible(true);
+
+      // 2. Automatically generate Google Drive link & upload to Drive folder
+      setIsUploadingToDrive(true);
+      (async () => {
+        try {
+          const safeName = (targetInvestor.name || 'Investor').replace(/[^a-zA-Z0-9]/g, '_');
+          const fileName = `Vantara_Receipt_${payment.paymentId}_${safeName}.pdf`;
+          const uploadRes = await repository.uploadReceiptPdf({
+            paymentId: payment.paymentId,
+            investorId: targetInvestor.investorId,
+            fileName,
+            pdfBase64: generatedBase64,
+            htmlContent: generateReceiptHtml(receiptPayload)
+          });
+          if (uploadRes?.driveUrl) {
+            driveUrlRef.current = uploadRes.driveUrl;
+            setReceiptDriveUrl(uploadRes.driveUrl);
+          }
+        } catch (driveErr: any) {
+          const errMsg = driveErr?.message || String(driveErr);
+          setDriveUploadError(errMsg);
+          console.warn('Google Drive receipt upload warning:', errMsg);
+        } finally {
+          setIsUploadingToDrive(false);
+        }
+      })();
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to record payment.');
     } finally {
@@ -160,12 +198,23 @@ export const RecordPaymentScreen: React.FC = () => {
     if (!recordedPayment || !investor) return;
     setIsSendingWhatsApp(true);
     try {
+      // If cloud drive upload is in progress, give it up to 2.5s to complete
+      let currentDriveUrl = driveUrlRef.current || receiptDriveUrl;
+      if (!currentDriveUrl && isUploadingToDrive) {
+        for (let i = 0; i < 5; i++) {
+          await new Promise<void>(resolve => setTimeout(() => resolve(), 500));
+          currentDriveUrl = driveUrlRef.current || receiptDriveUrl;
+          if (currentDriveUrl) break;
+        }
+      }
+
       const matchedInvestment = investments.find(inv => inv.investmentId === recordedPayment.investmentId);
       const receiptPayload: ReceiptData = {
         payment: recordedPayment,
         investor,
         investment: matchedInvestment,
-        bank: bank || undefined
+        bank: bank || undefined,
+        driveUrl: currentDriveUrl || undefined
       };
 
       const message = createWhatsAppReceiptMessage(receiptPayload);
@@ -397,6 +446,39 @@ export const RecordPaymentScreen: React.FC = () => {
               </View>
             </View>
 
+            {/* Google Drive Status & Cloud Link */}
+            <View style={styles.driveStatusCard}>
+              <View style={styles.driveStatusHeader}>
+                <Text style={styles.driveStatusIcon}>☁️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.driveStatusTitle}>Google Drive Cloud Link</Text>
+                  <Text style={styles.driveStatusSub}>
+                    {isUploadingToDrive
+                      ? 'Generating cloud link on Google Drive...'
+                      : receiptDriveUrl
+                        ? 'Linked directly inside WhatsApp message'
+                        : driveUploadError
+                          ? 'Drive authorization needed in Apps Script (Use Share PDF below)'
+                          : 'Offline / local voucher'}
+                  </Text>
+                </View>
+                {isUploadingToDrive && <ActivityIndicator size="small" color="#6366f1" />}
+              </View>
+
+              {receiptDriveUrl ? (
+                <TouchableOpacity
+                  style={styles.driveLinkChip}
+                  onPress={() => Linking.openURL(receiptDriveUrl)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.driveLinkChipText} numberOfLines={1}>
+                    🔗 {receiptDriveUrl}
+                  </Text>
+                  <Text style={styles.driveLinkOpenBadge}>Open ↗</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
             {/* Action Buttons */}
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -414,6 +496,17 @@ export const RecordPaymentScreen: React.FC = () => {
                   </>
                 )}
               </TouchableOpacity>
+
+              {receiptDriveUrl ? (
+                <TouchableOpacity
+                  style={styles.openDriveBtn}
+                  onPress={() => Linking.openURL(receiptDriveUrl)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.openDriveIcon}>☁️</Text>
+                  <Text style={styles.openDriveBtnText}>Open Receipt in Google Drive</Text>
+                </TouchableOpacity>
+              ) : null}
 
               <TouchableOpacity
                 style={styles.sharePdfBtn}
@@ -673,9 +766,79 @@ const styles = StyleSheet.create({
     color: THEME.colors.accent.emerald,
     fontWeight: '800'
   },
+  driveStatusCard: {
+    width: '100%',
+    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+    borderRadius: THEME.borderRadius.md,
+    padding: THEME.spacing.sm,
+    marginBottom: THEME.spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.25)'
+  },
+  driveStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  driveStatusIcon: {
+    fontSize: 20
+  },
+  driveStatusTitle: {
+    fontSize: THEME.typography.fontSize.xs,
+    fontWeight: '700',
+    color: THEME.colors.text.primary
+  },
+  driveStatusSub: {
+    fontSize: 10,
+    color: THEME.colors.text.muted,
+    marginTop: 2
+  },
+  driveLinkChip: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: THEME.colors.background.card,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: THEME.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)'
+  },
+  driveLinkChipText: {
+    fontSize: 11,
+    color: THEME.colors.accent.indigo,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 6
+  },
+  driveLinkOpenBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.accent.indigo
+  },
   modalActions: {
     width: '100%',
     gap: 10
+  },
+  openDriveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    borderRadius: THEME.borderRadius.md,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)'
+  },
+  openDriveIcon: {
+    fontSize: 16,
+    marginRight: 8
+  },
+  openDriveBtnText: {
+    color: '#3B82F6',
+    fontWeight: '700',
+    fontSize: THEME.typography.fontSize.sm
   },
   whatsappBtn: {
     flexDirection: 'row',

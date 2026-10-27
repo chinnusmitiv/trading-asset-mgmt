@@ -59,6 +59,19 @@ export interface IInvestorRepository {
   getInvestorDocuments(investorId: string): Promise<InvestorDocument[]>;
   addInvestorDocument(document: Omit<InvestorDocument, 'documentId'>): Promise<InvestorDocument>;
   updateInvestorDocument(documentId: string, fields: Partial<InvestorDocument>): Promise<InvestorDocument>;
+  uploadReceiptPdf(payload: {
+    paymentId: string;
+    investorId: string;
+    fileName: string;
+    pdfBase64?: string;
+    htmlContent?: string;
+  }): Promise<ReceiptUploadResult>;
+}
+
+export interface ReceiptUploadResult {
+  driveUrl: string;
+  fileId?: string;
+  documentId?: string;
 }
 
 export interface ITradeRepository {

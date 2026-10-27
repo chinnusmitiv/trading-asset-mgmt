@@ -104,6 +104,7 @@ export interface InvestorPayment {
   paymentMethod: PaymentMethod;
   paymentReference?: string;
   status: PaymentStatus;
+  receiptUrl?: string;
   notes?: string;
   createdAt: string;
   createdBy?: string;

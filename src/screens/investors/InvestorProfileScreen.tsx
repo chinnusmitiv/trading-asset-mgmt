@@ -42,6 +42,7 @@ import { maskBankAccount } from '../../utils/masking';
 import { formatPhoneNumber } from '../../utils/phone';
 import {
   generatePaymentReceiptPdf,
+  generateReceiptHtml,
   createWhatsAppReceiptMessage,
   sendReceiptOverWhatsApp,
   ReceiptData
@@ -510,10 +511,38 @@ export const InvestorProfileScreen: React.FC = () => {
         payment: pay,
         investor,
         investment: matchedInvestment,
-        bank: bank || banks[0] || undefined
+        bank: bank || banks[0] || undefined,
+        driveUrl: pay.receiptUrl || undefined
       };
-      const { uri } = await generatePaymentReceiptPdf(receiptPayload);
-      const message = createWhatsAppReceiptMessage(receiptPayload);
+
+      const { uri, base64 } = await generatePaymentReceiptPdf(receiptPayload);
+      let activeDriveUrl = pay.receiptUrl;
+
+      // If no Drive URL exists yet, attempt to upload to Drive
+      if (!activeDriveUrl && repository.uploadReceiptPdf) {
+        try {
+          const safeName = (investor.name || 'Investor').replace(/[^a-zA-Z0-9]/g, '_');
+          const uploadRes = await repository.uploadReceiptPdf({
+            paymentId: pay.paymentId,
+            investorId: investor.investorId,
+            fileName: `Vantara_Receipt_${pay.paymentId}_${safeName}.pdf`,
+            pdfBase64: base64,
+            htmlContent: generateReceiptHtml(receiptPayload)
+          });
+          if (uploadRes?.driveUrl) {
+            activeDriveUrl = uploadRes.driveUrl;
+            pay.receiptUrl = activeDriveUrl;
+          }
+        } catch (uploadErr) {
+          console.warn('Could not upload receipt to drive:', uploadErr);
+        }
+      }
+
+      const message = createWhatsAppReceiptMessage({
+        ...receiptPayload,
+        driveUrl: activeDriveUrl
+      });
+
       await sendReceiptOverWhatsApp({
         phone: investor.phone,
         message,

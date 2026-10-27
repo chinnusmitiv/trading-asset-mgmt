@@ -207,6 +207,101 @@ function dispatchAction(action, payload, token, requestId) {
       logAuditEvent(user.user_id, 'PAYMENT_REVERSED', 'Finance', payload.paymentId, null, revFields, 'Reversed payment: ' + (payload.reason || ''));
       return reversedPayment;
 
+    case 'payments.uploadReceipt':
+    case 'receipts.upload':
+    case 'receipts.generateDriveLink':
+      assertPermission(user, 'RECORD_PAYMENT');
+      var folderName = 'Vantara_Disbursement_Receipts';
+      var folders = DriveApp.getFoldersByName(folderName);
+      var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+
+      var fileName = payload.fileName || ('Vantara_Receipt_' + (payload.paymentId || 'VOUCHER') + '.pdf');
+      var blob;
+
+      if (payload.pdfBase64) {
+        var bytes = Utilities.base64Decode(payload.pdfBase64);
+        blob = Utilities.newBlob(bytes, 'application/pdf', fileName);
+      } else if (payload.htmlContent) {
+        blob = Utilities.newBlob(payload.htmlContent, 'text/html', fileName.replace('.pdf', '.html')).getAs('application/pdf');
+        blob.setName(fileName);
+      } else {
+        throw new Error('No PDF base64 or HTML content provided for receipt upload');
+      }
+
+      var file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      var fileId = file.getId();
+      var driveUrl = 'https://drive.google.com/file/d/' + fileId + '/view?usp=sharing';
+
+      // Record in Investor_Documents sheet
+      var docId = generateNextId(SHEET_NAMES.INVESTOR_DOCUMENTS, 'document_id', 'DOC-');
+      var docRecord = {
+        document_id: docId,
+        entity_type: 'Investor',
+        entity_id: payload.investorId || '',
+        document_type: 'Other',
+        document_name: fileName,
+        drive_file_id: fileId,
+        drive_url: driveUrl,
+        uploaded_date: new Date().toISOString().split('T')[0],
+        status: 'Valid',
+        created_by: user.user_id
+      };
+      appendRow(SHEET_NAMES.INVESTOR_DOCUMENTS, docRecord);
+
+      // Attempt to update Investor_Payments if column exists
+      if (payload.paymentId) {
+        try {
+          updateRow(SHEET_NAMES.INVESTOR_PAYMENTS, 'payment_id', payload.paymentId, {
+            receipt_url: driveUrl
+          });
+        } catch (e) {
+          // If receipt_url column does not exist yet, continue safely
+        }
+      }
+
+      logAuditEvent(user.user_id, 'RECEIPT_UPLOADED', 'Finance', payload.paymentId || docId, null, { driveUrl: driveUrl }, 'Uploaded disbursement receipt to Google Drive');
+
+      return {
+        driveUrl: driveUrl,
+        fileId: fileId,
+        documentId: docId
+      };
+
+    case 'documents.list':
+      assertPermission(user, 'VIEW_INVESTORS');
+      var allDocs = readRows(SHEET_NAMES.INVESTOR_DOCUMENTS);
+      if (payload && payload.entityId) {
+        return allDocs.filter(function(d) { return d.entity_id === payload.entityId; });
+      }
+      return allDocs;
+
+    case 'documents.create':
+      assertPermission(user, 'EDIT_INVESTOR');
+      var newDocId = generateNextId(SHEET_NAMES.INVESTOR_DOCUMENTS, 'document_id', 'DOC-');
+      var newDoc = {
+        document_id: newDocId,
+        entity_type: payload.entityType || 'Investor',
+        entity_id: payload.entityId || '',
+        document_type: payload.documentType || 'Other',
+        document_name: payload.documentName || '',
+        drive_file_id: payload.driveFileId || '',
+        drive_url: payload.driveUrl || '',
+        uploaded_date: payload.uploadedDate || new Date().toISOString().split('T')[0],
+        expiry_date: payload.expiryDate || '',
+        status: payload.status || 'Valid',
+        created_by: user.user_id
+      };
+      appendRow(SHEET_NAMES.INVESTOR_DOCUMENTS, newDoc);
+      logAuditEvent(user.user_id, 'DOCUMENT_CREATED', 'Investors', newDocId, null, newDoc, 'Created document record');
+      return newDoc;
+
+    case 'documents.update':
+      assertPermission(user, 'EDIT_INVESTOR');
+      var updatedDoc = updateRow(SHEET_NAMES.INVESTOR_DOCUMENTS, 'document_id', payload.documentId, payload.fields || {});
+      logAuditEvent(user.user_id, 'DOCUMENT_UPDATED', 'Investors', payload.documentId, null, payload.fields, 'Updated document');
+      return updatedDoc;
+
     case 'trades.list':
       assertPermission(user, 'VIEW_TRADES');
       var allTrades = readRows(SHEET_NAMES.TRADES);
@@ -763,4 +858,24 @@ function handleDashboardSummary(period, user) {
       { id: 'ALT-1', type: 'info', title: 'Operational system healthy', actionRoute: 'Dashboard' }
     ]
   };
+}
+
+/**
+ * Run this function ONCE in the Apps Script editor to authorize Google Drive permissions.
+ *
+ * Steps:
+ * 1. Select 'authorizeDrivePermissions' from the toolbar function dropdown.
+ * 2. Click 'Run' (▶).
+ * 3. In the popup, click 'Review permissions'.
+ * 4. Choose your Google Account.
+ * 5. Click 'Advanced' -> Click 'Go to ... (unsafe)'.
+ * 6. Click 'Allow'.
+ * 7. Deploy a New Version: Deploy > Manage deployments > Edit > New version > Deploy.
+ */
+function authorizeDrivePermissions() {
+  var folderName = 'Vantara_Disbursement_Receipts';
+  var folders = DriveApp.getFoldersByName(folderName);
+  var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+  Logger.log('Google Drive authorized successfully! Folder ID: ' + folder.getId());
+  return 'Google Drive authorized successfully! Folder ID: ' + folder.getId();
 }

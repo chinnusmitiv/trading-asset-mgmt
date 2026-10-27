@@ -18,6 +18,7 @@ export interface ReceiptData {
   bank?: InvestorBank;
   companyName?: string;
   logoBase64?: string;
+  driveUrl?: string;
 }
 
 /**
@@ -434,6 +435,11 @@ export function generateReceiptHtml(data: ReceiptData): string {
           <span class="info-label">Voucher Notes:</span>
           <span class="info-value">${payment.notes}</span>
         </div>` : ''}
+        ${(data.driveUrl || (payment as any).receiptUrl) ? `
+        <div class="info-line" style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #cbd5e1;">
+          <span class="info-label">Cloud Verification:</span>
+          <a href="${data.driveUrl || (payment as any).receiptUrl}" target="_blank" class="info-value" style="color: #6366f1; text-decoration: underline; font-weight: 700;">View on Google Drive &rarr;</a>
+        </div>` : ''}
       </div>
 
       <!-- Footer / Seal -->
@@ -457,26 +463,27 @@ export function generateReceiptHtml(data: ReceiptData): string {
 }
 
 /**
- * Compiles and generates a local PDF receipt document using Expo Print.
+ * Compiles and generates a local PDF receipt document using Expo Print, returning file URI and Base64.
  */
-export async function generatePaymentReceiptPdf(data: ReceiptData): Promise<{ uri: string }> {
+export async function generatePaymentReceiptPdf(data: ReceiptData): Promise<{ uri: string; base64?: string }> {
   const html = generateReceiptHtml(data);
   const file = await Print.printToFileAsync({
     html,
-    base64: false
+    base64: true
   });
-  return { uri: file.uri };
+  return { uri: file.uri, base64: file.base64 };
 }
 
 /**
- * Creates a clean, formatted WhatsApp message for the investor.
+ * Creates a clean, formatted WhatsApp message for the investor with optional Google Drive receipt link.
  */
 export function createWhatsAppReceiptMessage(data: ReceiptData): string {
   const {
     payment,
     investor,
     bank,
-    companyName = 'VANTARA TRADING COMPANY'
+    companyName = 'VANTARA TRADING COMPANY',
+    driveUrl
   } = data;
 
   const totalFormatted = formatCurrency(payment.totalAmount);
@@ -514,7 +521,14 @@ export function createWhatsAppReceiptMessage(data: ReceiptData): string {
   if (bank) {
     msg += `• *Credit Account:* ${bank.bankName} (${bank.accountNumberMasked})\n`;
   }
-  msg += `\n_Official PDF payment voucher generated and ready for your records._\n`;
+
+  const receiptLink = driveUrl || (payment as any).receiptUrl;
+  if (receiptLink) {
+    msg += `\n📄 *Official PDF Receipt (Google Drive):*\n${receiptLink}\n`;
+  } else {
+    msg += `\n_Official PDF payment voucher generated and ready for your records._\n`;
+  }
+
   msg += `\nThank you for your valued partnership.`;
 
   return msg;

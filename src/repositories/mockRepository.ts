@@ -11,7 +11,8 @@ import {
   ITradeRepository,
   IStaffRepository,
   IFinanceRepository,
-  IAuditRepository
+  IAuditRepository,
+  ReceiptUploadResult
 } from './interfaces';
 
 import {
@@ -472,6 +473,53 @@ export class MockRepository
     };
     await this.logEvent('DOCUMENT_UPDATED', 'Investors', documentId, oldVal, this.documents[idx], `Updated document ${documentId}`);
     return this.documents[idx];
+  }
+
+  async uploadReceiptPdf(payload: {
+    paymentId: string;
+    investorId: string;
+    fileName: string;
+    pdfBase64?: string;
+    htmlContent?: string;
+  }): Promise<ReceiptUploadResult> {
+    const mockFileId = `1drive_${Date.now()}`;
+    const mockDriveUrl = `https://drive.google.com/file/d/${mockFileId}/view?usp=sharing`;
+    const docId = `DOC-${('00000' + (this.documents.length + 1)).slice(-5)}`;
+
+    const newDoc: InvestorDocument = {
+      documentId: docId,
+      entityType: 'Investor',
+      entityId: payload.investorId,
+      documentType: 'Other',
+      documentName: payload.fileName,
+      driveFileId: mockFileId,
+      driveUrl: mockDriveUrl,
+      uploadedDate: new Date().toISOString().split('T')[0],
+      status: 'Valid',
+      createdBy: 'USR-00001'
+    };
+
+    this.documents.unshift(newDoc);
+
+    const payment = this.payments.find(p => p.paymentId === payload.paymentId);
+    if (payment) {
+      payment.receiptUrl = mockDriveUrl;
+    }
+
+    await this.logEvent(
+      'RECEIPT_UPLOADED',
+      'Finance',
+      payload.paymentId || docId,
+      null,
+      { driveUrl: mockDriveUrl },
+      `Generated Google Drive link for receipt ${payload.fileName}`
+    );
+
+    return {
+      driveUrl: mockDriveUrl,
+      fileId: mockFileId,
+      documentId: docId
+    };
   }
 
   // --- Trade Methods ---

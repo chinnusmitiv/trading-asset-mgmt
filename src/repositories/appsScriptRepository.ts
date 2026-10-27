@@ -11,7 +11,8 @@ import {
   ITradeRepository,
   IStaffRepository,
   IFinanceRepository,
-  IAuditRepository
+  IAuditRepository,
+  ReceiptUploadResult
 } from './interfaces';
 
 import {
@@ -218,6 +219,18 @@ export class AppsScriptRepository
   async updateInvestorDocument(documentId: string, fields: Partial<InvestorDocument>): Promise<InvestorDocument> {
     const res = await this.client.request<InvestorDocument>('documents.update', { documentId, fields });
     if (!res.success || !res.data) throw new Error(res.message);
+    return res.data;
+  }
+
+  async uploadReceiptPdf(payload: {
+    paymentId: string;
+    investorId: string;
+    fileName: string;
+    pdfBase64?: string;
+    htmlContent?: string;
+  }): Promise<ReceiptUploadResult> {
+    const res = await this.client.request<ReceiptUploadResult>('payments.uploadReceipt', payload);
+    if (!res.success || !res.data) throw new Error(res.message || 'Failed to upload receipt to Google Drive');
     return res.data;
   }
 

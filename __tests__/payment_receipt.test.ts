@@ -12,9 +12,11 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Linking } from 'react-native';
 
+import { MockRepository } from '../src/repositories/mockRepository';
+
 // Mock expo-print, expo-sharing, and react-native Linking
 jest.mock('expo-print', () => ({
-  printToFileAsync: jest.fn().mockResolvedValue({ uri: 'file:///mock/receipt.pdf', numberOfPages: 1 })
+  printToFileAsync: jest.fn().mockResolvedValue({ uri: 'file:///mock/receipt.pdf', base64: 'bW9ja1BkZkJhc2U2NA==', numberOfPages: 1 })
 }));
 
 jest.mock('expo-sharing', () => ({
@@ -141,6 +143,16 @@ describe('Payment Receipt PDF & WhatsApp Dispatch Suite', () => {
       expect(message).toContain('UTR20260902HDFC99812');
       expect(message).toContain('HDFC Bank');
     });
+
+    it('embeds Google Drive PDF link directly in WhatsApp message when driveUrl is present', () => {
+      const message = createWhatsAppReceiptMessage({
+        ...sampleReceiptData,
+        driveUrl: 'https://drive.google.com/file/d/1drive_mock999/view?usp=sharing'
+      });
+
+      expect(message).toContain('Official PDF Receipt (Google Drive):');
+      expect(message).toContain('https://drive.google.com/file/d/1drive_mock999/view?usp=sharing');
+    });
   });
 
   describe('Phone Sanitization for WhatsApp URLs', () => {
@@ -163,10 +175,25 @@ describe('Payment Receipt PDF & WhatsApp Dispatch Suite', () => {
   });
 
   describe('PDF Generation and Sharing Invocation', () => {
-    it('calls expo-print to compile HTML to a local PDF file', async () => {
+    it('calls expo-print to compile HTML to a local PDF file and returns Base64 data', async () => {
       const result = await generatePaymentReceiptPdf(sampleReceiptData);
       expect(Print.printToFileAsync).toHaveBeenCalled();
       expect(result.uri).toBe('file:///mock/receipt.pdf');
+      expect(result.base64).toBe('bW9ja1BkZkJhc2U2NA==');
+    });
+
+    it('uploads receipt to Google Drive via MockRepository and stores receiptUrl', async () => {
+      const mockRepo = new MockRepository();
+      const uploadRes = await mockRepo.uploadReceiptPdf({
+        paymentId: 'PAY-100452',
+        investorId: mockInvestor.investorId,
+        fileName: 'Vantara_Receipt_PAY-100452_Rajesh_Sharma.pdf',
+        pdfBase64: 'bW9ja1BkZkJhc2U2NA=='
+      });
+
+      expect(uploadRes.driveUrl).toContain('https://drive.google.com/file/d/');
+      expect(uploadRes.fileId).toBeDefined();
+      expect(uploadRes.documentId).toBeDefined();
     });
 
     it('shares the generated PDF receipt via expo-sharing', async () => {
