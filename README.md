@@ -44,48 +44,122 @@ A production-grade, enterprise financial management and proprietary trading oper
 
 ## 📊 Google Sheets Backend Setup (Live Database)
 
-Follow these steps to connect your mobile app to a live Google Spreadsheet:
+The mobile application uses a **Google Spreadsheet** as its live relational database and **Google Apps Script (GAS)** as its zero-cost serverless backend API. All data (investors, trades, staff, payroll, audit logs) is stored directly in your own private Google Drive with zero cloud database hosting fees.
 
-### Step 1: Create a Google Sheet
-1. Navigate to **[sheets.new](https://sheets.new)** in your browser.
-2. Name the spreadsheet: **`Asset Management Operations Database`**.
+Follow these step-by-step instructions to connect your mobile app to a live Google Sheet:
+
+---
+
+### Step 1: Create Your Google Spreadsheet
+1. In your web browser, navigate to **[sheets.new](https://sheets.new)** to create a blank spreadsheet.
+2. Rename the spreadsheet to: **`Asset Management Operations Database`**.
+
+---
 
 ### Step 2: Open Google Apps Script Editor
-1. In the Google Sheet top menu, click **Extensions** → **Apps Script**.
-2. Rename the project to `Asset Management API`.
+1. In the Google Sheets top menu bar, click **Extensions** → **Apps Script**.
+2. Rename the Apps Script project in the top-left from *Untitled project* to: **`Asset Management API`**.
+
+---
 
 ### Step 3: Copy Project Backend Scripts
-Create the following `.gs` files in the Apps Script editor and copy the contents from the `backend/google-apps-script/` directory:
+Create the following **7 script files** in the Apps Script editor (click **+** next to *Files* → select **Script**) and copy the exact contents from the `backend/google-apps-script/` directory of this repo:
 
-| Script File in Apps Script | Source File in Repository | Purpose |
+| Apps Script File Name | Repository Source File | Purpose |
 |---|---|---|
-| `SetupSheets.gs` | [`backend/google-apps-script/SetupSheets.gs`](backend/google-apps-script/SetupSheets.gs) | Auto-generates all 17 database tabs with column validations |
-| `SheetRepository.gs` | [`backend/google-apps-script/SheetRepository.gs`](backend/google-apps-script/SheetRepository.gs) | Low-level CRUD and sheet querying operations |
-| `Idempotency.gs` | [`backend/google-apps-script/Idempotency.gs`](backend/google-apps-script/Idempotency.gs) | Deduplication engine using client `requestId` |
-| `AuditService.gs` | [`backend/google-apps-script/AuditService.gs`](backend/google-apps-script/AuditService.gs) | Immutable audit logging for all mutations |
-| `ApiRouter.gs` | [`backend/google-apps-script/ApiRouter.gs`](backend/google-apps-script/ApiRouter.gs) | REST-like action dispatch router |
-| `Code.gs` | [`backend/google-apps-script/Code.gs`](backend/google-apps-script/Code.gs) | HTTP `doPost` / `doGet` gateway entrypoint |
-| `SeedData.gs` | [`backend/google-apps-script/SeedData.gs`](backend/google-apps-script/SeedData.gs) | Initial seed generator (Admin users, sample portfolio) |
+| `SetupSheets.gs` | [`backend/google-apps-script/SetupSheets.gs`](backend/google-apps-script/SetupSheets.gs) | Schema definitions; generates all 17 relational tabs with headers and styles |
+| `SheetRepository.gs` | [`backend/google-apps-script/SheetRepository.gs`](backend/google-apps-script/SheetRepository.gs) | Database driver; handles sheet reads, row appending, ID generation, and indexing |
+| `Idempotency.gs` | [`backend/google-apps-script/Idempotency.gs`](backend/google-apps-script/Idempotency.gs) | Mutex & deduplication engine using client `requestId` tokens |
+| `AuditService.gs` | [`backend/google-apps-script/AuditService.gs`](backend/google-apps-script/AuditService.gs) | SHA-256 immutable audit logging capturing before/after transaction states |
+| `ApiRouter.gs` | [`backend/google-apps-script/ApiRouter.gs`](backend/google-apps-script/ApiRouter.gs) | REST action dispatcher and Role-Based Access Control (RBAC) gatekeeper |
+| `Code.gs` | [`backend/google-apps-script/Code.gs`](backend/google-apps-script/Code.gs) | HTTP `doPost` / `doGet` gateway entrypoint with JSON envelope serialization |
+| `SeedData.gs` | [`backend/google-apps-script/SeedData.gs`](backend/google-apps-script/SeedData.gs) | Seed generator; populates users (`admin`, `manager`, `trader1`, `priya`) and demo data |
 
-### Step 4: Run Initial Sheet Generator
-1. In the Apps Script toolbar dropdown, select the function **`seedDevelopmentData`** (or `setupAllSheets`).
-2. Click **Run ▶️** and grant Google account authorizations when prompted.
-3. Switch to your Google Sheet to verify all **17 relational sheets** (`Users`, `Investors`, `Investments`, `InvestorPayments`, `Trades`, `Staff`, `Expenses`, `Salaries`, `AuditLog`, etc.) are created and populated.
+> [!TIP]
+> You can delete the default empty `Code.gs` before pasting or overwrite its contents with `backend/google-apps-script/Code.gs`.
+
+---
+
+### Step 4: Initialize All 17 Sheets & Seed Data
+1. In the Apps Script toolbar dropdown (next to *Debug*), select the function: **`seedDevelopmentData`** (or `initializeDatabaseSheets` for clean empty sheets).
+2. Click **Run ▶️**.
+3. **Handle Google Authorization Screen** (First time run only):
+   - A dialog titled *"Authorization required"* will appear → click **Review permissions**.
+   - Choose your Google Account.
+   - You will see a warning: *"Google hasn't verified this app"* → click **Advanced** (in small text at bottom-left).
+   - Click **Go to Asset Management API (unsafe)**.
+   - Click **Allow**.
+4. The script will run for ~5-10 seconds. Check the *Execution log* at the bottom to see:
+   `Execution completed`.
+5. Switch back to your Google Spreadsheet tab in the browser. You will see **17 formatted relational sheets** generated and populated:
+   - `Users`, `Investors`, `Investor_Bank`, `Investments`, `Investor_Payments`, `Investor_Documents`
+   - `Staff`, `Trades`, `Staff_Commissions`, `Company_Capital`, `Company_PnL`, `Expenses`, `Salaries`
+   - `Policies`, `Documents`, `Audit_Log`, `Settings`
+
+---
 
 ### Step 5: Deploy as Web App
-1. In the top-right corner of Apps Script, click **Deploy** → **New deployment**.
-2. Click the gear icon ⚙️ → select **Web app**.
-3. Configure settings:
+1. In the top-right corner of the Apps Script editor, click **Deploy** → **New deployment**.
+2. Click the gear icon ⚙️ next to *Select type* → choose **Web app**.
+3. Enter the deployment configuration:
    - **Description**: `Asset Management API v1.0`
-   - **Execute as**: `Me (your Google account)`
-   - **Who has access**: `Anyone` *(required for mobile client requests)*
-4. Click **Deploy** and copy your **Web App URL** (e.g. `https://script.google.com/macros/s/AKfycb.../exec`).
+   - **Execute as**: `Me (your Google account email)`
+   - **Who has access**: **`Anyone`** ⚠️ *(CRITICAL: Do NOT choose "Only myself". The mobile app requires "Anyone" so HTTP requests can reach the endpoint without manual Google login popups).*
+4. Click **Deploy**.
+5. Copy the generated **Web App URL** (format: `https://script.google.com/macros/s/AKfycb.../exec`).
 
-### Step 6: Connect Mobile App
-1. Open the mobile app → Navigate to **More** → **Settings & Config**.
-2. Turn **OFF** `Offline Mock Development Mode`.
-3. In **Google Apps Script Web App URL**, paste your copied Web App URL.
-4. Tap **Save Configurations**.
+> [!NOTE]
+> **Quick Browser Test**: Paste your Web App URL into your browser address bar with `?action=settings.get` appended:
+> `https://script.google.com/macros/s/AKfycb.../exec?action=settings.get`
+> You should receive a JSON response: `{"success":true,"data":[...],"message":"Operation completed successfully"}`.
+
+---
+
+### Step 6: Connect the Mobile App
+
+You can connect the app to your live Google Sheet using either of two methods:
+
+#### Method A: Directly inside the Mobile App UI
+1. Launch the mobile app and log in with demo credentials (`admin` / `admin123`).
+2. Navigate to the **More** tab (bottom navigation) → tap **Settings & Config**.
+3. Under **DATA REPOSITORY MODE**, toggle **OFF** `Offline Mock Development Mode`.
+4. In the **Google Apps Script Web App URL** input field, paste your copied Web App URL.
+5. Tap **Save Configurations**.
+6. Check the top header banner: it will display `🟢 Online (GAS Live)`!
+
+#### Method B: Set as Default in Codebase (For Production Builds)
+If building standalone APKs or want the app to always connect to your sheet by default:
+1. Open [`src/constants/config.ts`](src/constants/config.ts).
+2. Update the default parameters:
+   ```typescript
+   export const APP_CONFIG = {
+     // ...
+     DEFAULT_API_URL: 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec',
+     USE_MOCK_DATA: false // Set to false so the app defaults to your live sheet
+   };
+   ```
+
+---
+
+### Step 7: Updating Apps Script Backend (Redeploying)
+Whenever you modify or add code to `.gs` files in Google Apps Script, **Google requires creating a new version** for changes to take effect:
+1. In the Apps Script editor, click **Deploy** → **Manage deployments**.
+2. Click the **Edit** (pencil icon ✏️) in the top-right of the active deployment.
+3. In the **Version** dropdown, select **New version**.
+4. Click **Deploy**.
+*(Your Web App URL remains the exact same; the deployment now runs the updated code).*
+
+---
+
+### 🛠️ Common Troubleshooting
+
+| Issue / Error | Cause | Solution |
+|---|---|---|
+| **`SyntaxError: Unexpected token '<' ... is not valid JSON`** | "Who has access" was set to "Only myself", causing Google to return an HTML login page instead of JSON. | Go to Deploy → Manage deployments → Edit → Change **Who has access** to **`Anyone`** → Deploy. |
+| **`Authorization required` or `401 Unauthorized`** | Initial authorizations were not granted when running `seedDevelopmentData`. | In Apps Script, run `seedDevelopmentData` again, click "Review permissions" → Advanced → "Go to Asset Management API (unsafe)" → Allow. |
+| **Changes in `.gs` files not reflecting in mobile app** | Updated code was saved but not redeployed to a new version. | Click Deploy → Manage deployments → Edit ✏️ → Version: **New version** → Deploy. |
+| **Mobile app shows "Network request failed"** | Missing `/exec` at the end of the URL or device has no internet access. | Verify the URL ends with `/exec` (NOT `/edit` or `/dev`). Check phone internet connection. |
+| **Reset all data to clean state** | Need to wipe and re-seed sample data. | In Apps Script, run `seedDevelopmentData()`. It will automatically re-create and populate all tabs. |
 
 ---
 
