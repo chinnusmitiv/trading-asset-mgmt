@@ -695,8 +695,8 @@ export const InvestorProfileScreen: React.FC = () => {
                 onAction={() => navigation.navigate('AddInvestment', { investorId })}
               />
             ) : (
-              investments.map(inv => (
-                <View key={inv.investmentId} style={styles.card}>
+              investments.map((inv, idx) => (
+                <View key={inv.investmentId || (inv as any).investment_id || `inv-${idx}`} style={styles.card}>
                   <View style={styles.cardHeader}>
                     <View>
                       <Text style={styles.cardTitle}>{inv.investmentId}</Text>
@@ -769,12 +769,12 @@ export const InvestorProfileScreen: React.FC = () => {
                 onAction={() => navigation.navigate('RecordPayment', { investorId })}
               />
             ) : (
-              payments.map(pay => {
+              payments.map((pay, idx) => {
                 const isPaid = pay.status === 'Paid';
                 const isReversed = pay.status === 'Reversed';
 
                 return (
-                  <View key={pay.paymentId} style={styles.card}>
+                  <View key={pay.paymentId || (pay as any).payment_id || `pay-${idx}`} style={styles.card}>
                     <View style={styles.cardHeader}>
                       <View>
                         <Text style={styles.cardTitle}>{pay.paymentId}</Text>
@@ -869,8 +869,8 @@ export const InvestorProfileScreen: React.FC = () => {
                 onAction={handleOpenAddBank}
               />
             ) : (
-              banks.map(b => (
-                <View key={b.bankId} style={styles.card}>
+              banks.map((b, idx) => (
+                <View key={b.bankId || (b as any).bank_id || `bank-${idx}`} style={styles.card}>
                   <View style={styles.cardHeader}>
                     <View>
                       <Text style={styles.cardTitle}>{b.bankName}</Text>
@@ -951,8 +951,8 @@ export const InvestorProfileScreen: React.FC = () => {
                 onAction={handleOpenAddDoc}
               />
             ) : (
-              documents.map(doc => (
-                <View key={doc.documentId} style={styles.card}>
+              documents.map((doc, idx) => (
+                <View key={doc.documentId || (doc as any).document_id || `doc-${idx}`} style={styles.card}>
                   <View style={styles.cardHeader}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cardTitle}>{doc.documentName}</Text>

@@ -338,9 +338,9 @@ export const AddTradeScreen: React.FC = () => {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>EXECUTING TRADER & PROFIT SHARE</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.traderRow}>
-                {staffList.map(s => (
+                {staffList.map((s, idx) => (
                   <TouchableOpacity
-                    key={s.staffId}
+                    key={s.staffId || (s as any).staff_id || `staff-${idx}`}
                     style={[
                       styles.traderPill,
                       selectedStaffId === s.staffId && styles.traderPillActive

@@ -140,9 +140,9 @@ export const RecordPaymentScreen: React.FC = () => {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>ASSOCIATED INVESTMENT TRANCHE</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trancheSelectorRow}>
-                {investments.map(inv => (
+                {investments.map((inv, idx) => (
                   <TouchableOpacity
-                    key={inv.investmentId}
+                    key={inv.investmentId || (inv as any).investment_id || `tranche-${idx}`}
                     style={[
                       styles.tranchePill,
                       selectedInvestmentId === inv.investmentId && styles.tranchePillActive

@@ -187,7 +187,7 @@ export const TradingDashboardScreen: React.FC = () => {
         ) : (
           <FlatList
             data={filteredTrades}
-            keyExtractor={item => item.tradeId}
+            keyExtractor={(item, index) => item.tradeId || (item as any).trade_id || `trade-${index}`}
             renderItem={renderTradeCard}
             contentContainerStyle={styles.listContent}
             refreshControl={

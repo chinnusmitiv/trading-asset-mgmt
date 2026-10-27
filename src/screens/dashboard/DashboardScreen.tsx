@@ -104,8 +104,8 @@ export const DashboardScreen: React.FC = () => {
         {/* Operational Alerts / Action Items */}
         {summary?.alerts && summary.alerts.length > 0 ? (
           <View style={styles.alertContainer}>
-            {summary.alerts.map(alert => (
-              <View key={alert.id} style={styles.alertCard}>
+            {summary.alerts.map((alert, idx) => (
+              <View key={alert.id || (alert as any).alert_id || `alert-${idx}`} style={styles.alertCard}>
                 <Text style={styles.alertIcon}>⚡</Text>
                 <Text style={styles.alertText}>{alert.title}</Text>
               </View>

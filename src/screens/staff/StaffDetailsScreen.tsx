@@ -442,12 +442,12 @@ export const StaffDetailsScreen: React.FC = () => {
                 message="No trading executions recorded for this trader profile yet."
               />
             ) : (
-              trades.map(t => {
+              trades.map((t, idx) => {
                 const isProfit = t.netPnL >= 0;
 
                 return (
                   <TouchableOpacity
-                    key={t.tradeId}
+                    key={t.tradeId || (t as any).trade_id || `trade-${idx}`}
                     style={styles.card}
                     onPress={() => navigation.navigate('TradeDetails', { tradeId: t.tradeId })}
                   >
@@ -506,8 +506,8 @@ export const StaffDetailsScreen: React.FC = () => {
                 message="Settled trades and profit distributions will record entries here."
               />
             ) : (
-              commissions.map(c => (
-                <View key={c.commissionId} style={styles.card}>
+              commissions.map((c, idx) => (
+                <View key={c.commissionId || (c as any).commission_id || `comm-${idx}`} style={styles.card}>
                   <View style={styles.cardHeader}>
                     <View>
                       <Text style={styles.cardTitle}>{c.commissionPeriod}</Text>
@@ -561,8 +561,8 @@ export const StaffDetailsScreen: React.FC = () => {
                 onAction={handleOpenAddBank}
               />
             ) : (
-              banks.map(b => (
-                <View key={b.bankId} style={styles.card}>
+              banks.map((b, idx) => (
+                <View key={b.bankId || (b as any).bank_id || `bank-${idx}`} style={styles.card}>
                   <View style={styles.cardHeader}>
                     <View>
                       <Text style={styles.cardTitle}>{b.bankName}</Text>

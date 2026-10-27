@@ -191,9 +191,9 @@ export const FinanceDashboardScreen: React.FC = () => {
         {/* Sub-Ledger Content */}
         {activeTab === 'Expenses' ? (
           <View style={styles.ledgerList}>
-            {expenses.map(item => (
+            {expenses.map((item, idx) => (
               <TouchableOpacity
-                key={item.expenseId}
+                key={item.expenseId || (item as any).expense_id || `exp-${idx}`}
                 style={styles.ledgerCard}
                 activeOpacity={0.7}
                 onPress={() => navigation.navigate('ExpenseDetails', { expenseId: item.expenseId })}
@@ -216,9 +216,9 @@ export const FinanceDashboardScreen: React.FC = () => {
           </View>
         ) : (
           <View style={styles.ledgerList}>
-            {salaries.map(item => (
+            {salaries.map((item, idx) => (
               <TouchableOpacity
-                key={item.salaryId}
+                key={item.salaryId || (item as any).salary_id || `sal-${idx}`}
                 style={styles.ledgerCard}
                 activeOpacity={0.7}
                 onPress={() => navigation.navigate('SalaryDetails', { salaryId: item.salaryId })}

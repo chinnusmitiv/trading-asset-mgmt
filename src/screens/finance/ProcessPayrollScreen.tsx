@@ -160,9 +160,9 @@ export const ProcessPayrollScreen: React.FC = () => {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>SELECT STAFF / TRADER</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.staffRow}>
-                {staffList.map(s => (
+                {staffList.map((s, idx) => (
                   <TouchableOpacity
-                    key={s.staffId}
+                    key={s.staffId || (s as any).staff_id || `staff-${idx}`}
                     style={[
                       styles.staffPill,
                       selectedStaffId === s.staffId && styles.staffPillActive

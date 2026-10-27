@@ -152,7 +152,7 @@ export const StaffCommissionsScreen: React.FC = () => {
         ) : (
           <FlatList
             data={filtered}
-            keyExtractor={item => item.commissionId}
+            keyExtractor={(item, index) => item.commissionId || (item as any).commission_id || `comm-${index}`}
             renderItem={renderCommissionCard}
             contentContainerStyle={styles.listContent}
             refreshControl={

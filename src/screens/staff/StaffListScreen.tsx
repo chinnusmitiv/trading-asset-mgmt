@@ -114,7 +114,7 @@ export const StaffListScreen: React.FC = () => {
         ) : (
           <FlatList
             data={visibleStaff}
-            keyExtractor={item => item.staffId}
+            keyExtractor={(item, index) => item.staffId || (item as any).staff_id || `staff-${index}`}
             renderItem={renderStaffCard}
             contentContainerStyle={styles.listContent}
             refreshControl={

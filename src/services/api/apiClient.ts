@@ -3,6 +3,7 @@
  */
 
 import { ApiResponse } from '../../types';
+import { normalizeAppsScriptResponse } from '../../utils/dataNormalization';
 
 export class ApiClient {
   private baseUrl: string;
@@ -59,6 +60,9 @@ export class ApiClient {
       }
 
       const json: ApiResponse<T> = await response.json();
+      if (json && json.data !== undefined && json.data !== null) {
+        json.data = normalizeAppsScriptResponse(json.data);
+      }
       return json;
     } catch (err: any) {
       return {

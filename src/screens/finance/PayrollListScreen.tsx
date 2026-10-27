@@ -171,7 +171,7 @@ export const PayrollListScreen: React.FC = () => {
         ) : (
           <FlatList
             data={filtered}
-            keyExtractor={item => item.salaryId}
+            keyExtractor={(item, index) => item.salaryId || (item as any).salary_id || `salary-${index}`}
             renderItem={renderSalaryCard}
             contentContainerStyle={styles.listContent}
             refreshControl={

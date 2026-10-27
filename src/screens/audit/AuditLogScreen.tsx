@@ -131,7 +131,7 @@ export const AuditLogScreen: React.FC = () => {
         ) : (
           <FlatList
             data={filteredLogs}
-            keyExtractor={item => item.auditId}
+            keyExtractor={(item, index) => item.auditId || (item as any).audit_id || `audit-${index}`}
             renderItem={renderAuditItem}
             contentContainerStyle={styles.listContent}
             refreshControl={

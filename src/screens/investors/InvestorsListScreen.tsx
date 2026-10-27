@@ -162,7 +162,7 @@ export const InvestorsListScreen: React.FC = () => {
         ) : (
           <FlatList
             data={filteredInvestors}
-            keyExtractor={item => item.investorId}
+            keyExtractor={(item, index) => item.investorId || (item as any).investor_id || `inv-${index}`}
             renderItem={renderInvestorCard}
             contentContainerStyle={styles.listContent}
             refreshControl={
