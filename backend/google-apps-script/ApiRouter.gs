@@ -115,6 +115,86 @@ function dispatchAction(action, payload, token, requestId) {
       assertPermission(user, 'VIEW_STAFF');
       return readRows(SHEET_NAMES.STAFF);
 
+    case 'staff.create':
+      assertPermission(user, 'CREATE_STAFF');
+      var newStaffId = generateNextId(SHEET_NAMES.STAFF, 'staff_id', 'STAFF-');
+      var staffRecord = {
+        staff_id: newStaffId,
+        name: payload.name,
+        phone: payload.phone,
+        email: payload.email || '',
+        role: payload.role || 'Trader',
+        department: payload.department || 'Prop Trading',
+        joining_date: payload.joiningDate || new Date().toISOString().split('T')[0],
+        basic_salary: Number(payload.basicSalary || 0),
+        trading_percentage: Number(payload.tradingPercentage || 0),
+        commission_percentage: Number(payload.commissionPercentage || 0),
+        status: payload.status || 'Active',
+        bank_details_reference: payload.bankDetailsReference || '',
+        notes: payload.notes || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      appendRow(SHEET_NAMES.STAFF, staffRecord);
+      logAuditEvent(user.user_id, 'STAFF_CREATED', 'Staff', newStaffId, null, staffRecord, 'Created staff profile');
+
+      var createdUser = null;
+      if (payload.loginCredentials && payload.loginCredentials.username) {
+        var existingUsers = readRows(SHEET_NAMES.USERS);
+        var desiredUsername = String(payload.loginCredentials.username).trim().toLowerCase();
+        for (var i = 0; i < existingUsers.length; i++) {
+          if (String(existingUsers[i].username).toLowerCase() === desiredUsername) {
+            throw new Error('Username "' + payload.loginCredentials.username + '" is already taken');
+          }
+        }
+
+        var newUserId = generateNextId(SHEET_NAMES.USERS, 'user_id', 'USR-');
+        var userRole = payload.loginCredentials.role || (payload.role === 'Manager' ? 'Manager' : 'Staff');
+        var userRecord = {
+          user_id: newUserId,
+          username: desiredUsername,
+          password_hash: payload.loginCredentials.password || 'Staff@123',
+          full_name: payload.name,
+          email: payload.email || (desiredUsername + '@assetmgmt.internal'),
+          role: userRole,
+          staff_id: newStaffId,
+          status: 'Active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        appendRow(SHEET_NAMES.USERS, userRecord);
+        logAuditEvent(user.user_id, 'USER_CREATED', 'Users', newUserId, null, { username: userRecord.username, role: userRecord.role, staff_id: newStaffId }, 'Created login user for staff');
+
+        createdUser = {
+          userId: userRecord.user_id,
+          username: userRecord.username,
+          fullName: userRecord.full_name,
+          email: userRecord.email,
+          role: userRecord.role,
+          staffId: userRecord.staff_id,
+          status: userRecord.status
+        };
+      }
+
+      return {
+        staffId: staffRecord.staff_id,
+        name: staffRecord.name,
+        phone: staffRecord.phone,
+        email: staffRecord.email,
+        role: staffRecord.role,
+        department: staffRecord.department,
+        joiningDate: staffRecord.joining_date,
+        basicSalary: staffRecord.basic_salary,
+        tradingPercentage: staffRecord.trading_percentage,
+        commissionPercentage: staffRecord.commission_percentage,
+        status: staffRecord.status,
+        bankDetailsReference: staffRecord.bank_details_reference,
+        notes: staffRecord.notes,
+        createdAt: staffRecord.created_at,
+        updatedAt: staffRecord.updated_at,
+        user: createdUser
+      };
+
     case 'expenses.list':
       assertPermission(user, 'VIEW_EXPENSES');
       return readRows(SHEET_NAMES.EXPENSES);
@@ -190,7 +270,7 @@ function assertPermission(user, permission) {
   if (role === 'Admin') return true;
 
   var permissionsByRole = {
-    Manager: ['VIEW_INVESTORS', 'CREATE_INVESTOR', 'VIEW_TRADES', 'CREATE_TRADE', 'VIEW_STAFF', 'VIEW_EXPENSES', 'SUBMIT_EXPENSE'],
+    Manager: ['VIEW_INVESTORS', 'CREATE_INVESTOR', 'VIEW_TRADES', 'CREATE_TRADE', 'VIEW_STAFF', 'CREATE_STAFF', 'VIEW_EXPENSES', 'SUBMIT_EXPENSE'],
     Staff: ['VIEW_TRADES', 'CREATE_TRADE', 'VIEW_SALARIES', 'SUBMIT_EXPENSE']
   };
 

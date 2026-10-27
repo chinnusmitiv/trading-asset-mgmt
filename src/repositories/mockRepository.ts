@@ -28,7 +28,9 @@ import {
   Expense,
   Salary,
   AuditLog,
-  DashboardSummary
+  DashboardSummary,
+  CreateStaffLoginCredentials,
+  UserRole
 } from '../types';
 
 import {
@@ -54,10 +56,11 @@ export class MockRepository
   private idempotencyCache = new Map<string, any>();
 
   // --- Seed Data ---
-  private users: User[] = [
-    { userId: 'USR-00001', username: 'admin', fullName: 'Super Admin', email: 'admin@assetmgmt.internal', role: 'Admin', status: 'Active' },
-    { userId: 'USR-00002', username: 'manager', fullName: 'Operations Manager', email: 'manager@assetmgmt.internal', role: 'Manager', staffId: 'STAFF-00001', status: 'Active' },
-    { userId: 'USR-00003', username: 'trader1', fullName: 'Vikram Sharma', email: 'vikram@assetmgmt.internal', role: 'Staff', staffId: 'STAFF-00002', status: 'Active' }
+  private users: (User & { passwordHash?: string })[] = [
+    { userId: 'USR-00001', username: 'admin', fullName: 'Super Admin', email: 'admin@assetmgmt.internal', role: 'Admin', status: 'Active', passwordHash: 'admin123' },
+    { userId: 'USR-00002', username: 'manager', fullName: 'Operations Manager', email: 'manager@assetmgmt.internal', role: 'Manager', staffId: 'STAFF-00001', status: 'Active', passwordHash: 'manager123' },
+    { userId: 'USR-00003', username: 'trader1', fullName: 'Vikram Sharma', email: 'vikram@assetmgmt.internal', role: 'Staff', staffId: 'STAFF-00002', status: 'Active', passwordHash: 'trader123' },
+    { userId: 'USR-00004', username: 'priya', fullName: 'Priya Patel', email: 'priya@assetmgmt.internal', role: 'Staff', staffId: 'STAFF-00003', status: 'Active', passwordHash: 'trader123' }
   ];
 
   private staff: Staff[] = [
@@ -171,14 +174,60 @@ export class MockRepository
   ];
 
   // --- Auth Methods ---
-  async login(username: string, _password: string): Promise<{ token: string; user: User }> {
+  async login(username: string, password?: string): Promise<{ token: string; user: User }> {
     const user = this.users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (!user) {
       throw new Error('Invalid credentials');
     }
+    if (user.passwordHash && password && user.passwordHash !== password) {
+      throw new Error('Invalid credentials');
+    }
     this.currentUser = user;
     await this.logEvent('USER_LOGIN', 'Auth', user.userId, null, { username: user.username, role: user.role }, 'User logged in');
-    return { token: 'mock_tok_' + user.userId, user };
+    const { passwordHash, ...cleanUser } = user;
+    return { token: 'mock_tok_' + user.userId, user: cleanUser };
+  }
+
+  async getUsers(): Promise<User[]> {
+    return this.users.map(({ passwordHash, ...u }) => ({ ...u }));
+  }
+
+  async createUser(data: {
+    username: string;
+    password?: string;
+    fullName: string;
+    email: string;
+    role: UserRole;
+    staffId?: string;
+  }): Promise<User> {
+    const cleanUsername = data.username.trim().toLowerCase();
+    const existing = this.users.find(u => u.username.toLowerCase() === cleanUsername);
+    if (existing) {
+      throw new Error(`Username "${data.username.trim()}" is already taken`);
+    }
+    const userSeq = this.users.length + 1;
+    const newUserId = `USR-${('00000' + userSeq).slice(-5)}`;
+    const newUser: User & { passwordHash?: string } = {
+      userId: newUserId,
+      username: cleanUsername,
+      fullName: data.fullName,
+      email: data.email,
+      role: data.role,
+      staffId: data.staffId,
+      status: 'Active',
+      passwordHash: data.password || 'Staff@123'
+    };
+    this.users.push(newUser);
+    await this.logEvent(
+      'USER_CREATED',
+      'Auth',
+      newUserId,
+      null,
+      { username: newUser.username, role: newUser.role, staffId: data.staffId },
+      `Created user account "${newUser.username}"`
+    );
+    const { passwordHash, ...cleanUser } = newUser;
+    return cleanUser;
   }
 
   async getCurrentUser(): Promise<User | null> {
@@ -568,7 +617,10 @@ export class MockRepository
     };
   }
 
-  async createStaff(data: Omit<Staff, 'staffId' | 'createdAt' | 'updatedAt'>): Promise<Staff> {
+  async createStaff(
+    data: Omit<Staff, 'staffId' | 'createdAt' | 'updatedAt' | 'user'>,
+    loginCredentials?: CreateStaffLoginCredentials
+  ): Promise<Staff & { user?: User }> {
     const seq = this.staff.length + 1;
     const newId = `STAFF-${('00000' + seq).slice(-5)}`;
     const now = new Date().toISOString();
@@ -580,7 +632,55 @@ export class MockRepository
     };
     this.staff.push(newStaff);
     await this.logEvent('STAFF_CREATED', 'Staff', newId, null, newStaff, 'Added staff profile');
-    return newStaff;
+
+    let createdUser: User | undefined;
+    if (loginCredentials && loginCredentials.username && loginCredentials.username.trim()) {
+      const cleanUsername = loginCredentials.username.trim().toLowerCase();
+      const existing = this.users.find(u => u.username.toLowerCase() === cleanUsername);
+      if (existing) {
+        throw new Error(`Username "${loginCredentials.username.trim()}" is already taken`);
+      }
+
+      const userSeq = this.users.length + 1;
+      const newUserId = `USR-${('00000' + userSeq).slice(-5)}`;
+      const assignedRole: UserRole = loginCredentials.role || (data.role === 'Manager' ? 'Manager' : 'Staff');
+
+      const newUser: User & { passwordHash?: string } = {
+        userId: newUserId,
+        username: cleanUsername,
+        fullName: data.name,
+        email: data.email || `${cleanUsername}@assetmgmt.internal`,
+        role: assignedRole,
+        staffId: newId,
+        status: 'Active',
+        passwordHash: loginCredentials.password || 'Staff@123'
+      };
+
+      this.users.push(newUser);
+      createdUser = {
+        userId: newUser.userId,
+        username: newUser.username,
+        fullName: newUser.fullName,
+        email: newUser.email,
+        role: newUser.role,
+        staffId: newUser.staffId,
+        status: newUser.status
+      };
+
+      await this.logEvent(
+        'USER_CREATED',
+        'Auth',
+        newUserId,
+        null,
+        { username: newUser.username, role: newUser.role, staffId: newId },
+        `Created login user "${newUser.username}" for staff "${data.name}"`
+      );
+    }
+
+    return {
+      ...newStaff,
+      user: createdUser
+    };
   }
 
   async updateStaff(staffId: string, fields: Partial<Staff>): Promise<Staff> {

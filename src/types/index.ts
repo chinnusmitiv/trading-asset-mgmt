@@ -112,6 +112,12 @@ export interface InvestorPayment {
 export type StaffRole = 'Trader' | 'Manager' | 'Accountant' | 'Support';
 export type StaffStatus = 'Active' | 'Inactive' | 'On_Leave';
 
+export interface CreateStaffLoginCredentials {
+  username: string;
+  password: string;
+  role?: UserRole;
+}
+
 export interface Staff {
   staffId: string;
   name: string;
@@ -128,6 +134,7 @@ export interface Staff {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  user?: User;
 }
 
 export type TradeType = 'BUY' | 'SELL' | 'INTRADAY' | 'SWING' | 'OPTION';

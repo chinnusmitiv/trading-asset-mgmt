@@ -18,7 +18,8 @@ function seedDevelopmentData() {
   var users = [
     { user_id: 'USR-00001', username: 'admin', password_hash: 'admin123', full_name: 'Super Admin', email: 'admin@assetmgmt.internal', role: 'Admin', staff_id: '', status: 'Active', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { user_id: 'USR-00002', username: 'manager', password_hash: 'manager123', full_name: 'Operations Manager', email: 'manager@assetmgmt.internal', role: 'Manager', staff_id: 'STAFF-00001', status: 'Active', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { user_id: 'USR-00003', username: 'trader1', password_hash: 'trader123', full_name: 'Vikram Sharma', email: 'vikram@assetmgmt.internal', role: 'Staff', staff_id: 'STAFF-00002', status: 'Active', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+    { user_id: 'USR-00003', username: 'trader1', password_hash: 'trader123', full_name: 'Vikram Sharma', email: 'vikram@assetmgmt.internal', role: 'Staff', staff_id: 'STAFF-00002', status: 'Active', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { user_id: 'USR-00004', username: 'priya', password_hash: 'trader123', full_name: 'Priya Patel', email: 'priya@assetmgmt.internal', role: 'Staff', staff_id: 'STAFF-00003', status: 'Active', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   ];
   users.forEach(function(u) { appendRow(SHEET_NAMES.USERS, u); });
 

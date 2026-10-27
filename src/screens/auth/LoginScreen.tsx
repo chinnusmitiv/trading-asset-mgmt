@@ -43,7 +43,7 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const handleQuickFill = (role: 'admin' | 'manager' | 'trader') => {
+  const handleQuickFill = (role: 'admin' | 'manager' | 'trader1' | 'trader2') => {
     switch (role) {
       case 'admin':
         setUsername('admin');
@@ -53,8 +53,12 @@ export const LoginScreen: React.FC = () => {
         setUsername('manager');
         setPassword('manager123');
         break;
-      case 'trader':
+      case 'trader1':
         setUsername('trader1');
+        setPassword('trader123');
+        break;
+      case 'trader2':
+        setUsername('priya');
         setPassword('trader123');
         break;
     }
@@ -134,9 +138,15 @@ export const LoginScreen: React.FC = () => {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.quickBtn}
-                    onPress={() => handleQuickFill('trader')}
+                    onPress={() => handleQuickFill('trader1')}
                   >
-                    <Text style={styles.quickBtnText}>Trader</Text>
+                    <Text style={styles.quickBtnText}>Trader 1</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.quickBtn}
+                    onPress={() => handleQuickFill('trader2')}
+                  >
+                    <Text style={styles.quickBtnText}>Trader 2</Text>
                   </TouchableOpacity>
                 </View>
               </View>

@@ -28,7 +28,8 @@ import {
   Expense,
   Salary,
   AuditLog,
-  DashboardSummary
+  DashboardSummary,
+  CreateStaffLoginCredentials
 } from '../types';
 
 export class AppsScriptRepository
@@ -208,8 +209,14 @@ export class AppsScriptRepository
     return res.data;
   }
 
-  async createStaff(data: Omit<Staff, 'staffId' | 'createdAt' | 'updatedAt'>): Promise<Staff> {
-    const res = await this.client.request<Staff>('staff.create', data);
+  async createStaff(
+    data: Omit<Staff, 'staffId' | 'createdAt' | 'updatedAt' | 'user'>,
+    loginCredentials?: CreateStaffLoginCredentials
+  ): Promise<Staff & { user?: User }> {
+    const res = await this.client.request<Staff & { user?: User }>('staff.create', {
+      ...data,
+      loginCredentials
+    });
     if (!res.success || !res.data) throw new Error(res.message);
     return res.data;
   }

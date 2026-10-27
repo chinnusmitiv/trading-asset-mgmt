@@ -185,7 +185,9 @@ When running in **Offline Mock Mode** or against the live Google Sheets database
 |---|---|---|---|
 | **Super Admin** | `admin` | `admin123` | Unrestricted firm-wide access to all ledgers, unmasked PI data, payroll, reversals, and audit logs |
 | **Desk Manager** | `manager` | `manager123` | Operational lead: manages investors, reviews/settles trades, approves expenses (investor data masked, salaries hidden) |
-| **Prop Trader / Staff** | `trader1` | `trader123` | Individual trader workspace: logs personal trades, views own commission ledger and monthly salary slip |
+| **Prop Trader 1** | `trader1` | `trader123` | Vikram Sharma (`STAFF-00002`): logs personal trades, views own commission ledger and salary slip |
+| **Prop Trader 2** | `priya` | `trader123` | Priya Patel (`STAFF-00003`): Options specialist segregated workspace |
+| **New Staff / Custom** | *Custom* | *Custom* | Created directly in-app via **Staff** → **Onboard Staff** with automatic login account generation |
 
 ### 🔍 Detailed Persona Breakdown
 

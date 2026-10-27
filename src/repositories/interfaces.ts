@@ -17,13 +17,24 @@ import {
   Expense,
   Salary,
   AuditLog,
-  DashboardSummary
+  DashboardSummary,
+  CreateStaffLoginCredentials,
+  UserRole
 } from '../types';
 
 export interface IAuthRepository {
   login(username: string, password: string): Promise<{ token: string; user: User }>;
   getCurrentUser(): Promise<User | null>;
   logout(): Promise<void>;
+  getUsers?(): Promise<User[]>;
+  createUser?(data: {
+    username: string;
+    password?: string;
+    fullName: string;
+    email: string;
+    role: UserRole;
+    staffId?: string;
+  }): Promise<User>;
 }
 
 export interface IInvestorRepository {
@@ -76,7 +87,10 @@ export interface IStaffRepository {
       totalCompanyShare: number;
     };
   }>;
-  createStaff(staff: Omit<Staff, 'staffId' | 'createdAt' | 'updatedAt'>): Promise<Staff>;
+  createStaff(
+    staff: Omit<Staff, 'staffId' | 'createdAt' | 'updatedAt' | 'user'>,
+    loginCredentials?: CreateStaffLoginCredentials
+  ): Promise<Staff & { user?: User }>;
   updateStaff(staffId: string, fields: Partial<Staff>): Promise<Staff>;
   getCommissions(filters?: { staffId?: string; period?: string }): Promise<StaffCommission[]>;
   calculateAndCreateCommission(data: Omit<StaffCommission, 'commissionId' | 'createdAt'>, requestId?: string): Promise<StaffCommission>;
