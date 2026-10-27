@@ -100,6 +100,12 @@ describe('Payment Receipt PDF & WhatsApp Dispatch Suite', () => {
       expect(html).toContain('HDFC Bank');
       expect(html).toContain('XXXX XXXX 4582');
 
+      // Company branding & logo
+      expect(html).toContain('VANTARA TRADING COMPANY');
+      expect(html).toContain('class="company-logo"');
+      expect(html).toContain('class="seal-logo"');
+      expect(html).toContain('data:image/png;base64,');
+
       // Itemized amounts
       expect(html).toContain('1,25,000'); // Profit
       expect(html).toContain('5,000'); // Other bonus

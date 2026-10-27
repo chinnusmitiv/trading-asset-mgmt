@@ -10,7 +10,8 @@ import {
   Alert,
   TouchableOpacity,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  Image
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { THEME } from '../../constants/theme';
@@ -351,6 +352,17 @@ export const RecordPaymentScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
+            {/* Company Brand Header in Modal */}
+            <View style={styles.modalLogoHeader}>
+              <Image
+                source={require('../../../assets/logo.png')}
+                style={styles.modalLogoImage}
+                resizeMode="contain"
+              />
+              <Text style={styles.modalBrandTitle}>VANTARA TRADING COMPANY</Text>
+              <Text style={styles.modalBrandSub}>DISBURSEMENT DESK</Text>
+            </View>
+
             {/* Header Badge */}
             <View style={styles.successIconCircle}>
               <Text style={styles.successIconText}>✓</Text>
@@ -564,6 +576,28 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 20,
     elevation: 10
+  },
+  modalLogoHeader: {
+    alignItems: 'center',
+    marginBottom: THEME.spacing.md
+  },
+  modalLogoImage: {
+    width: 60,
+    height: 60,
+    marginBottom: 6
+  },
+  modalBrandTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: THEME.colors.text.primary,
+    letterSpacing: 0.5
+  },
+  modalBrandSub: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: THEME.colors.accent.indigo,
+    letterSpacing: 1,
+    marginTop: 2
   },
   successIconCircle: {
     width: 56,

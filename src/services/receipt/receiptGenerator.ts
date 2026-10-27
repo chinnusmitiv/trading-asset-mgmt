@@ -9,6 +9,7 @@ import { Investor, InvestorPayment, Investment, InvestorBank } from '../../types
 import { formatCurrency } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { formatPhoneForWhatsApp, formatPhoneNumber } from '../../utils/phone';
+import { COMPANY_LOGO_BASE64 } from '../../constants/logoBase64';
 
 export interface ReceiptData {
   payment: InvestorPayment;
@@ -16,6 +17,7 @@ export interface ReceiptData {
   investment?: Investment;
   bank?: InvestorBank;
   companyName?: string;
+  logoBase64?: string;
 }
 
 /**
@@ -27,7 +29,8 @@ export function generateReceiptHtml(data: ReceiptData): string {
     investor,
     investment,
     bank,
-    companyName = 'PRIME ASSET MANAGEMENT DESK'
+    companyName = 'VANTARA TRADING COMPANY',
+    logoBase64 = COMPANY_LOGO_BASE64
   } = data;
 
   const formattedTotal = formatCurrency(payment.totalAmount);
@@ -73,20 +76,35 @@ export function generateReceiptHtml(data: ReceiptData): string {
     .header {
       background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
       color: #ffffff;
-      padding: 28px 32px;
+      padding: 24px 32px;
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .company-logo {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      object-fit: contain;
+      background: #ffffff;
+      padding: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
     }
     .header-left h1 {
       font-size: 18px;
       font-weight: 800;
       letter-spacing: 0.5px;
       color: #ffffff;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
     .header-left p {
-      font-size: 11px;
+      font-size: 10px;
       color: #94a3b8;
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -248,6 +266,15 @@ export function generateReceiptHtml(data: ReceiptData): string {
     .signature-box {
       text-align: right;
     }
+    .seal-logo {
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+      opacity: 0.9;
+      margin-bottom: 6px;
+      margin-left: auto;
+      display: block;
+    }
     .signature-line {
       width: 140px;
       border-bottom: 1px solid #94a3b8;
@@ -270,8 +297,13 @@ export function generateReceiptHtml(data: ReceiptData): string {
   <div class="receipt-container">
     <div class="header">
       <div class="header-left">
-        <h1>${companyName}</h1>
-        <p>OFFICIAL DISBURSEMENT RECEIPT</p>
+        <div class="brand-row">
+          <img src="${logoBase64}" class="company-logo" alt="${companyName} Logo" />
+          <div>
+            <h1>${companyName}</h1>
+            <p>OFFICIAL DISBURSEMENT RECEIPT</p>
+          </div>
+        </div>
       </div>
       <div class="header-right">
         <span class="badge">Disbursed</span>
@@ -411,9 +443,10 @@ export function generateReceiptHtml(data: ReceiptData): string {
           <p>Generated on ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} • Voucher ID: ${payment.paymentId}</p>
         </div>
         <div class="signature-box">
+          <img src="${logoBase64}" class="seal-logo" alt="Official Seal" />
           <div class="signature-line"></div>
           <p style="font-weight: 700; color: #475569;">Authorized Signatory</p>
-          <p style="font-size: 9px;">${companyName}</p>
+          <p style="font-size: 9px; color: #64748b;">${companyName}</p>
         </div>
       </div>
     </div>
@@ -439,7 +472,12 @@ export async function generatePaymentReceiptPdf(data: ReceiptData): Promise<{ ur
  * Creates a clean, formatted WhatsApp message for the investor.
  */
 export function createWhatsAppReceiptMessage(data: ReceiptData): string {
-  const { payment, investor, bank } = data;
+  const {
+    payment,
+    investor,
+    bank,
+    companyName = 'VANTARA TRADING COMPANY'
+  } = data;
 
   const totalFormatted = formatCurrency(payment.totalAmount);
   const profitFormatted = formatCurrency(payment.profitAmount);
@@ -448,7 +486,7 @@ export function createWhatsAppReceiptMessage(data: ReceiptData): string {
   const formattedDate = formatDate(payment.paymentDate);
 
   let msg = `*DISBURSEMENT RECEIPT*\n`;
-  msg += `*Asset Management Operations*\n`;
+  msg += `*${companyName}*\n`;
   msg += `-----------------------------------------\n`;
   msg += `Dear *${investor.name}*,\n\n`;
   msg += `We are pleased to confirm that your disbursement has been successfully recorded and processed.\n\n`;
