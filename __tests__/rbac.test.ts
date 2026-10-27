@@ -75,6 +75,61 @@ describe('RBAC Authorization & Permission Matrix', () => {
     });
   });
 
+  describe('UI Navigation & More Menu RBAC Filtering', () => {
+    const getVisibleTabs = (user: User) => {
+      const isStaff = user.role === 'Staff';
+      const allTabs = ['Dashboard', 'Investors', 'Trading', 'Staff', 'Finance', 'More'];
+      return allTabs.filter(tab => {
+        if (isStaff && (tab === 'Investors' || tab === 'Staff' || tab === 'Finance')) {
+          return false;
+        }
+        return true;
+      });
+    };
+
+    const getMoreMenuSections = (user: User) => {
+      const isStaff = user.role === 'Staff';
+      if (isStaff) {
+        return ['MY WORKSPACE'];
+      }
+      return ['FINANCIAL & OPERATIONS', 'SECURITY & GOVERNANCE'];
+    };
+
+    it('hides Investors, Staff, and Finance tabs for Staff role in bottom navigation', () => {
+      const staffTabs = getVisibleTabs(staffUser);
+      expect(staffTabs).toEqual(['Dashboard', 'Trading', 'More']);
+      expect(staffTabs).not.toContain('Investors');
+      expect(staffTabs).not.toContain('Staff');
+      expect(staffTabs).not.toContain('Finance');
+    });
+
+    it('shows all operational tabs for Admin and Manager roles', () => {
+      const adminTabs = getVisibleTabs(adminUser);
+      expect(adminTabs).toEqual(['Dashboard', 'Investors', 'Trading', 'Staff', 'Finance', 'More']);
+
+      const managerTabs = getVisibleTabs(managerUser);
+      expect(managerTabs).toEqual(['Dashboard', 'Investors', 'Trading', 'Staff', 'Finance', 'More']);
+    });
+
+    it('hides Financial & Operations and Security & Governance sections on More screen for Staff', () => {
+      const staffSections = getMoreMenuSections(staffUser);
+      expect(staffSections).toContain('MY WORKSPACE');
+      expect(staffSections).not.toContain('FINANCIAL & OPERATIONS');
+      expect(staffSections).not.toContain('SECURITY & GOVERNANCE');
+    });
+
+    it('shows Financial & Operations and Security & Governance sections on More screen for Admin/Manager', () => {
+      const adminSections = getMoreMenuSections(adminUser);
+      expect(adminSections).toContain('FINANCIAL & OPERATIONS');
+      expect(adminSections).toContain('SECURITY & GOVERNANCE');
+      expect(adminSections).not.toContain('MY WORKSPACE');
+
+      const managerSections = getMoreMenuSections(managerUser);
+      expect(managerSections).toContain('FINANCIAL & OPERATIONS');
+      expect(managerSections).toContain('SECURITY & GOVERNANCE');
+    });
+  });
+
   it('rejects unauthenticated users', () => {
     expect(hasPermission(null, 'VIEW_DASHBOARD')).toBe(false);
     expect(hasPermission(undefined, 'VIEW_INVESTORS')).toBe(false);

@@ -156,6 +156,7 @@ Whenever you modify or add code to `.gs` files in Google Apps Script, **Google r
 | Issue / Error | Cause | Solution |
 |---|---|---|
 | **`SyntaxError: Unexpected token '<' ... is not valid JSON`** | "Who has access" was set to "Only myself", causing Google to return an HTML login page instead of JSON. | Go to Deploy → Manage deployments → Edit → Change **Who has access** to **`Anyone`** → Deploy. |
+| **`Unsupported action: investors.update` or `payments.create`** | The active Google Apps Script deployment is running an older version of `ApiRouter.gs`. | Copy the updated [`backend/google-apps-script/ApiRouter.gs`](backend/google-apps-script/ApiRouter.gs) into your Google Apps Script editor, then click Deploy → Manage deployments → Edit ✏️ → Version: **New version** → Deploy. |
 | **`Authorization required` or `401 Unauthorized`** | Initial authorizations were not granted when running `seedDevelopmentData`. | In Apps Script, run `seedDevelopmentData` again, click "Review permissions" → Advanced → "Go to Asset Management API (unsafe)" → Allow. |
 | **Changes in `.gs` files not reflecting in mobile app** | Updated code was saved but not redeployed to a new version. | Click Deploy → Manage deployments → Edit ✏️ → Version: **New version** → Deploy. |
 | **Mobile app shows "Network request failed"** | Missing `/exec` at the end of the URL or device has no internet access. | Verify the URL ends with `/exec` (NOT `/edit` or `/dev`). Check phone internet connection. |

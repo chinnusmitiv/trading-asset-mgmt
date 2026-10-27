@@ -41,6 +41,12 @@ import { formatDate } from '../../utils/date';
 import { maskBankAccount } from '../../utils/masking';
 import { formatPhoneNumber } from '../../utils/phone';
 import {
+  generatePaymentReceiptPdf,
+  createWhatsAppReceiptMessage,
+  sendReceiptOverWhatsApp,
+  ReceiptData
+} from '../../services/receipt/receiptGenerator';
+import {
   calculateOutstandingPrincipal,
   calculateInvestorProfitPaid,
   calculateInvestorMonthlyReturn
@@ -495,6 +501,29 @@ export const InvestorProfileScreen: React.FC = () => {
     }
   };
 
+  // Handle WhatsApp Receipt Dispatch for Existing Payment
+  const handleSendExistingPaymentReceipt = async (pay: InvestorPayment) => {
+    if (!investor) return;
+    try {
+      const matchedInvestment = investments.find(inv => inv.investmentId === pay.investmentId);
+      const receiptPayload: ReceiptData = {
+        payment: pay,
+        investor,
+        investment: matchedInvestment,
+        bank: bank || banks[0] || undefined
+      };
+      const { uri } = await generatePaymentReceiptPdf(receiptPayload);
+      const message = createWhatsAppReceiptMessage(receiptPayload);
+      await sendReceiptOverWhatsApp({
+        phone: investor.phone,
+        message,
+        pdfUri: uri
+      });
+    } catch (e: any) {
+      Alert.alert('Receipt Error', 'Failed to generate or dispatch receipt.');
+    }
+  };
+
   if (loading && !refreshing) {
     return <LoadingState message="Loading investor portfolio..." />;
   }
@@ -831,6 +860,13 @@ export const InvestorProfileScreen: React.FC = () => {
                             style={{ flex: 1 }}
                           />
                         )}
+                        <Button
+                          title="💬 WhatsApp Receipt"
+                          size="sm"
+                          variant="outline"
+                          onPress={() => handleSendExistingPaymentReceipt(pay)}
+                          style={{ flex: 1.2 }}
+                        />
                         <Button
                           title="↩ Reverse"
                           size="sm"

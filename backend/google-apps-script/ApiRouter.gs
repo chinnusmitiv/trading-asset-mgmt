@@ -61,6 +61,152 @@ function dispatchAction(action, payload, token, requestId) {
       logAuditEvent(user.user_id, 'INVESTOR_CREATED', 'Investors', newInvId, null, invRecord, 'Created new investor');
       return invRecord;
 
+    case 'investors.update':
+    case 'investor.update':
+      assertPermission(user, 'CREATE_INVESTOR');
+      var invId = payload.investorId;
+      var rawInvFields = payload.fields || {};
+      var invUpdate = {};
+      if (rawInvFields.name !== undefined) invUpdate.name = rawInvFields.name;
+      if (rawInvFields.phone !== undefined) invUpdate.phone = rawInvFields.phone;
+      if (rawInvFields.email !== undefined) invUpdate.email = rawInvFields.email;
+      if (rawInvFields.address !== undefined) invUpdate.address = rawInvFields.address;
+      if (rawInvFields.status !== undefined) invUpdate.status = rawInvFields.status;
+      if (rawInvFields.notes !== undefined) invUpdate.notes = rawInvFields.notes;
+      invUpdate.updated_at = new Date().toISOString();
+
+      var updatedInvestor = updateRow(SHEET_NAMES.INVESTORS, 'investor_id', invId, invUpdate);
+      logAuditEvent(user.user_id, 'INVESTOR_UPDATED', 'Investors', invId, null, invUpdate, 'Updated investor profile');
+      return updatedInvestor;
+
+    case 'investments.create':
+    case 'investment.create':
+      assertPermission(user, 'CREATE_INVESTOR');
+      var newInvTrancheId = generateNextId(SHEET_NAMES.INVESTMENTS, 'investment_id', 'INV-TRANCHE-');
+      var principal = Number(payload.principalAmount || 0);
+      var returnPct = Number(payload.returnPercentage || 0);
+      var monthlyRet = Number(payload.monthlyReturn || (principal * (returnPct / 100)));
+      var trancheRecord = {
+        investment_id: newInvTrancheId,
+        investor_id: payload.investorId,
+        principal_amount: principal,
+        investment_date: payload.investmentDate || new Date().toISOString().split('T')[0],
+        maturity_date: payload.maturityDate || '',
+        return_percentage: returnPct,
+        monthly_return: monthlyRet,
+        payment_frequency: payload.paymentFrequency || 'Monthly',
+        policy_id: payload.policyId || '',
+        status: payload.status || 'Active',
+        notes: payload.notes || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: user.user_id
+      };
+      appendRow(SHEET_NAMES.INVESTMENTS, trancheRecord);
+      logAuditEvent(user.user_id, 'INVESTMENT_CREATED', 'Investors', newInvTrancheId, null, trancheRecord, 'Created investment tranche');
+      return trancheRecord;
+
+    case 'investments.update':
+    case 'investment.update':
+      assertPermission(user, 'CREATE_INVESTOR');
+      var trancheFields = {};
+      var rawFields = payload.fields || {};
+      if (rawFields.principalAmount !== undefined) trancheFields.principal_amount = Number(rawFields.principalAmount);
+      if (rawFields.returnPercentage !== undefined) trancheFields.return_percentage = Number(rawFields.returnPercentage);
+      if (rawFields.monthlyReturn !== undefined) trancheFields.monthly_return = Number(rawFields.monthlyReturn);
+      if (rawFields.paymentFrequency !== undefined) trancheFields.payment_frequency = rawFields.paymentFrequency;
+      if (rawFields.maturityDate !== undefined) trancheFields.maturity_date = rawFields.maturityDate;
+      if (rawFields.status !== undefined) trancheFields.status = rawFields.status;
+      if (rawFields.notes !== undefined) trancheFields.notes = rawFields.notes;
+      trancheFields.updated_at = new Date().toISOString();
+
+      var updatedTranche = updateRow(SHEET_NAMES.INVESTMENTS, 'investment_id', payload.investmentId, trancheFields);
+      logAuditEvent(user.user_id, 'INVESTMENT_UPDATED', 'Investors', payload.investmentId, null, trancheFields, 'Updated investment tranche');
+      return updatedTranche;
+
+    case 'bank.create':
+    case 'investors.bank.create':
+      assertPermission(user, 'CREATE_INVESTOR');
+      var newBankId = generateNextId(SHEET_NAMES.INVESTOR_BANK, 'bank_id', 'BNK-');
+      var bankRecord = {
+        bank_id: newBankId,
+        investor_id: payload.investorId,
+        account_holder_name: payload.accountHolderName || '',
+        bank_name: payload.bankName || '',
+        account_number_masked: payload.accountNumberMasked || (payload.accountNumber ? ('XXXX XXXX ' + String(payload.accountNumber).slice(-4)) : 'XXXX'),
+        ifsc_code: payload.ifscCode || '',
+        account_type: payload.accountType || 'Savings',
+        is_primary: payload.isPrimary !== undefined ? payload.isPrimary : true,
+        created_at: new Date().toISOString()
+      };
+      appendRow(SHEET_NAMES.INVESTOR_BANK, bankRecord);
+      logAuditEvent(user.user_id, 'BANK_ADDED', 'Investors', newBankId, null, bankRecord, 'Added investor bank account');
+      return bankRecord;
+
+    case 'bank.update':
+    case 'investors.bank.update':
+      assertPermission(user, 'CREATE_INVESTOR');
+      var bankUpdateFields = {};
+      var bFields = payload.fields || {};
+      if (bFields.accountHolderName !== undefined) bankUpdateFields.account_holder_name = bFields.accountHolderName;
+      if (bFields.bankName !== undefined) bankUpdateFields.bank_name = bFields.bankName;
+      if (bFields.accountNumberMasked !== undefined) bankUpdateFields.account_number_masked = bFields.accountNumberMasked;
+      if (bFields.ifscCode !== undefined) bankUpdateFields.ifsc_code = bFields.ifscCode;
+      if (bFields.accountType !== undefined) bankUpdateFields.account_type = bFields.accountType;
+      if (bFields.isPrimary !== undefined) bankUpdateFields.is_primary = bFields.isPrimary;
+      var updatedBank = updateRow(SHEET_NAMES.INVESTOR_BANK, 'bank_id', payload.bankId, bankUpdateFields);
+      logAuditEvent(user.user_id, 'BANK_UPDATED', 'Investors', payload.bankId, null, bankUpdateFields, 'Updated investor bank details');
+      return updatedBank;
+
+    case 'payments.create':
+    case 'payment.create':
+      assertPermission(user, 'RECORD_PAYMENT');
+      var newPayId = generateNextId(SHEET_NAMES.INVESTOR_PAYMENTS, 'payment_id', 'PAY-');
+      var payRecord = {
+        payment_id: newPayId,
+        investor_id: payload.investorId,
+        investment_id: payload.investmentId,
+        payment_date: payload.paymentDate || new Date().toISOString().split('T')[0],
+        payment_month: payload.paymentMonth || new Date().toISOString().slice(0, 7),
+        principal_amount: Number(payload.principalAmount || 0),
+        profit_amount: Number(payload.profitAmount || 0),
+        other_amount: Number(payload.otherAmount || 0),
+        total_amount: Number(payload.totalAmount || 0),
+        payment_method: payload.paymentMethod || 'Bank_Transfer',
+        payment_reference: payload.paymentReference || '',
+        status: payload.status || 'Pending',
+        notes: payload.notes || '',
+        created_at: new Date().toISOString(),
+        created_by: user.user_id
+      };
+      appendRow(SHEET_NAMES.INVESTOR_PAYMENTS, payRecord);
+      logAuditEvent(user.user_id, 'PAYMENT_RECORDED', 'Finance', newPayId, null, payRecord, 'Recorded investor disbursement payment');
+      return payRecord;
+
+    case 'payments.markPaid':
+    case 'payment.markPaid':
+    case 'payments.update':
+    case 'payment.update':
+      assertPermission(user, 'APPROVE_PAYMENT');
+      var payFields = {
+        status: payload.status || 'Paid'
+      };
+      if (payload.paymentReference) payFields.payment_reference = payload.paymentReference;
+      var updatedPayment = updateRow(SHEET_NAMES.INVESTOR_PAYMENTS, 'payment_id', payload.paymentId, payFields);
+      logAuditEvent(user.user_id, 'PAYMENT_STATUS_UPDATED', 'Finance', payload.paymentId, null, payFields, 'Updated payment status to ' + (payload.status || 'Paid'));
+      return updatedPayment;
+
+    case 'payments.reverse':
+    case 'payment.reverse':
+      assertPermission(user, 'APPROVE_PAYMENT');
+      var revFields = {
+        status: 'Reversed',
+        notes: payload.reason ? ('Reversed: ' + payload.reason) : 'Reversed'
+      };
+      var reversedPayment = updateRow(SHEET_NAMES.INVESTOR_PAYMENTS, 'payment_id', payload.paymentId, revFields);
+      logAuditEvent(user.user_id, 'PAYMENT_REVERSED', 'Finance', payload.paymentId, null, revFields, 'Reversed payment: ' + (payload.reason || ''));
+      return reversedPayment;
+
     case 'trades.list':
       assertPermission(user, 'VIEW_TRADES');
       var allTrades = readRows(SHEET_NAMES.TRADES);
@@ -294,6 +440,23 @@ function dispatchAction(action, payload, token, requestId) {
       if (!trade) throw new Error('Trade not found: ' + payload.tradeId);
       return trade;
 
+    case 'trades.update':
+      assertPermission(user, 'CREATE_TRADE');
+      var trUpdate = {};
+      if (payload.status) trUpdate.status = payload.status;
+      if (payload.notes) trUpdate.notes = payload.notes;
+      var updatedTrade = updateRow(SHEET_NAMES.TRADES, 'trade_id', payload.tradeId, trUpdate);
+      logAuditEvent(user.user_id, 'TRADE_UPDATED', 'Trading', payload.tradeId, null, trUpdate, 'Updated trade status to ' + payload.status);
+      return updatedTrade;
+
+    case 'trades.settle':
+      assertPermission(user, 'CREATE_TRADE');
+      var tradeToSettle = findByField(SHEET_NAMES.TRADES, 'trade_id', payload.tradeId);
+      if (!tradeToSettle) throw new Error('Trade not found: ' + payload.tradeId);
+      updateRow(SHEET_NAMES.TRADES, 'trade_id', payload.tradeId, { status: 'Settled' });
+      logAuditEvent(user.user_id, 'TRADE_SETTLED', 'Trading', payload.tradeId, null, { status: 'Settled' }, 'Settled trade');
+      return { trade: tradeToSettle };
+
     case 'expenses.list':
       assertPermission(user, 'VIEW_EXPENSES');
       return readRows(SHEET_NAMES.EXPENSES);
@@ -303,6 +466,62 @@ function dispatchAction(action, payload, token, requestId) {
       var expense = findByField(SHEET_NAMES.EXPENSES, 'expense_id', payload.expenseId);
       if (!expense) throw new Error('Expense not found: ' + payload.expenseId);
       return expense;
+
+    case 'expenses.create':
+      assertPermission(user, 'SUBMIT_EXPENSE');
+      var newExpId = generateNextId(SHEET_NAMES.EXPENSES, 'expense_id', 'EXP-');
+      var expRecord = {
+        expense_id: newExpId,
+        expense_date: payload.expenseDate || new Date().toISOString().split('T')[0],
+        category: payload.category || 'Office_Supplies',
+        description: payload.description || '',
+        amount: Number(payload.amount || 0),
+        payment_method: payload.paymentMethod || 'Bank_Transfer',
+        paid_by: payload.paidBy || user.user_id,
+        vendor: payload.vendor || '',
+        receipt_url: payload.receiptUrl || '',
+        status: payload.status || 'Pending',
+        notes: payload.notes || '',
+        created_at: new Date().toISOString(),
+        created_by: user.user_id,
+        approved_at: '',
+        approved_by: ''
+      };
+      appendRow(SHEET_NAMES.EXPENSES, expRecord);
+      logAuditEvent(user.user_id, 'EXPENSE_CREATED', 'Finance', newExpId, null, expRecord, 'Logged expense');
+      return expRecord;
+
+    case 'expenses.update':
+      assertPermission(user, 'SUBMIT_EXPENSE');
+      var expUpdate = {};
+      var eFields = payload.fields || {};
+      if (eFields.description !== undefined) expUpdate.description = eFields.description;
+      if (eFields.amount !== undefined) expUpdate.amount = Number(eFields.amount);
+      if (eFields.category !== undefined) expUpdate.category = eFields.category;
+      if (eFields.vendor !== undefined) expUpdate.vendor = eFields.vendor;
+      if (eFields.status !== undefined) expUpdate.status = eFields.status;
+      if (eFields.notes !== undefined) expUpdate.notes = eFields.notes;
+      var updatedExp = updateRow(SHEET_NAMES.EXPENSES, 'expense_id', payload.expenseId, expUpdate);
+      logAuditEvent(user.user_id, 'EXPENSE_UPDATED', 'Finance', payload.expenseId, null, expUpdate, 'Updated expense');
+      return updatedExp;
+
+    case 'expenses.approve':
+      assertPermission(user, 'APPROVE_EXPENSE');
+      var appExp = {
+        status: payload.status || 'Approved',
+        approved_at: new Date().toISOString(),
+        approved_by: user.user_id
+      };
+      if (payload.paymentReference) appExp.notes = 'Ref: ' + payload.paymentReference;
+      var approvedExp = updateRow(SHEET_NAMES.EXPENSES, 'expense_id', payload.expenseId, appExp);
+      logAuditEvent(user.user_id, 'EXPENSE_STATUS_UPDATED', 'Finance', payload.expenseId, null, appExp, 'Updated expense status to ' + appExp.status);
+      return approvedExp;
+
+    case 'expenses.delete':
+      assertPermission(user, 'APPROVE_EXPENSE');
+      var delExp = updateRow(SHEET_NAMES.EXPENSES, 'expense_id', payload.expenseId, { status: 'Cancelled' });
+      logAuditEvent(user.user_id, 'EXPENSE_DELETED', 'Finance', payload.expenseId, null, null, 'Cancelled expense');
+      return delExp;
 
     case 'salaries.list':
       assertPermission(user, 'VIEW_SALARIES');
@@ -317,6 +536,72 @@ function dispatchAction(action, payload, token, requestId) {
       var salary = findByField(SHEET_NAMES.SALARIES, 'salary_id', payload.salaryId);
       if (!salary) throw new Error('Salary not found: ' + payload.salaryId);
       return salary;
+
+    case 'salaries.create':
+      assertPermission(user, 'APPROVE_EXPENSE');
+      var newSalId = generateNextId(SHEET_NAMES.SALARIES, 'salary_id', 'SAL-');
+      var basic = Number(payload.basicSalary || 0);
+      var comm = Number(payload.commission || 0);
+      var bonus = Number(payload.bonus || 0);
+      var allowance = Number(payload.allowance || 0);
+      var deduction = Number(payload.deduction || 0);
+      var advance = Number(payload.advance || 0);
+      var netSal = payload.netSalary !== undefined ? Number(payload.netSalary) : (basic + comm + bonus + allowance - deduction - advance);
+
+      var salRecord = {
+        salary_id: newSalId,
+        staff_id: payload.staffId,
+        salary_month: payload.salaryMonth || new Date().toISOString().slice(0, 7),
+        basic_salary: basic,
+        allowance: allowance,
+        bonus: bonus,
+        commission: comm,
+        deduction: deduction,
+        advance: advance,
+        net_salary: netSal,
+        payment_date: payload.paymentDate || new Date().toISOString().split('T')[0],
+        payment_status: payload.paymentStatus || 'Pending',
+        payment_reference: payload.paymentReference || '',
+        notes: payload.notes || '',
+        created_at: new Date().toISOString(),
+        created_by: user.user_id,
+        approved_at: '',
+        approved_by: ''
+      };
+      appendRow(SHEET_NAMES.SALARIES, salRecord);
+      logAuditEvent(user.user_id, 'SALARY_CREATED', 'Finance', newSalId, null, salRecord, 'Created salary slip');
+      return salRecord;
+
+    case 'salaries.update':
+      assertPermission(user, 'APPROVE_EXPENSE');
+      var salUpdate = {};
+      var sFields = payload.fields || {};
+      if (sFields.basicSalary !== undefined) salUpdate.basic_salary = Number(sFields.basicSalary);
+      if (sFields.netSalary !== undefined) salUpdate.net_salary = Number(sFields.netSalary);
+      if (sFields.paymentStatus !== undefined) salUpdate.payment_status = sFields.paymentStatus;
+      if (sFields.paymentReference !== undefined) salUpdate.payment_reference = sFields.paymentReference;
+      if (sFields.notes !== undefined) salUpdate.notes = sFields.notes;
+      var updatedSal = updateRow(SHEET_NAMES.SALARIES, 'salary_id', payload.salaryId, salUpdate);
+      logAuditEvent(user.user_id, 'SALARY_UPDATED', 'Finance', payload.salaryId, null, salUpdate, 'Updated salary slip');
+      return updatedSal;
+
+    case 'salaries.approve':
+      assertPermission(user, 'APPROVE_EXPENSE');
+      var appSal = {
+        payment_status: payload.status || 'Paid',
+        approved_at: new Date().toISOString(),
+        approved_by: user.user_id
+      };
+      if (payload.paymentReference) appSal.payment_reference = payload.paymentReference;
+      var approvedSal = updateRow(SHEET_NAMES.SALARIES, 'salary_id', payload.salaryId, appSal);
+      logAuditEvent(user.user_id, 'SALARY_STATUS_UPDATED', 'Finance', payload.salaryId, null, appSal, 'Updated salary status to ' + appSal.payment_status);
+      return approvedSal;
+
+    case 'salaries.delete':
+      assertPermission(user, 'APPROVE_EXPENSE');
+      var delSal = updateRow(SHEET_NAMES.SALARIES, 'salary_id', payload.salaryId, { payment_status: 'Cancelled' });
+      logAuditEvent(user.user_id, 'SALARY_DELETED', 'Finance', payload.salaryId, null, null, 'Cancelled salary slip');
+      return delSal;
 
     case 'audit.list':
       assertPermission(user, 'VIEW_AUDIT');
@@ -381,7 +666,21 @@ function assertPermission(user, permission) {
   if (role === 'Admin') return true;
 
   var permissionsByRole = {
-    Manager: ['VIEW_INVESTORS', 'CREATE_INVESTOR', 'VIEW_TRADES', 'CREATE_TRADE', 'VIEW_STAFF', 'CREATE_STAFF', 'VIEW_EXPENSES', 'SUBMIT_EXPENSE'],
+    Manager: [
+      'VIEW_INVESTORS',
+      'CREATE_INVESTOR',
+      'EDIT_INVESTOR',
+      'CREATE_INVESTMENT',
+      'RECORD_PAYMENT',
+      'APPROVE_PAYMENT',
+      'VIEW_TRADES',
+      'CREATE_TRADE',
+      'VIEW_STAFF',
+      'CREATE_STAFF',
+      'VIEW_EXPENSES',
+      'SUBMIT_EXPENSE',
+      'APPROVE_EXPENSE'
+    ],
     Staff: ['VIEW_TRADES', 'CREATE_TRADE', 'VIEW_SALARIES', 'SUBMIT_EXPENSE']
   };
 

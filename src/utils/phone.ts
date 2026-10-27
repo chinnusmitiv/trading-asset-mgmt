@@ -71,3 +71,23 @@ export function sanitizePhoneForStorage(phone: string): string {
 
   return trimmed;
 }
+
+/**
+ * Normalizes phone number into international format for WhatsApp deep links (e.g. "919876543210").
+ */
+export function formatPhoneForWhatsApp(phone: string | number | null | undefined): string {
+  if (!phone) return '';
+  const str = String(phone).trim();
+  if (str.startsWith('#')) return '';
+  const digits = str.replace(/\D/g, '');
+
+  if (digits.length === 10) {
+    return `91${digits}`;
+  }
+
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return digits;
+  }
+
+  return digits;
+}

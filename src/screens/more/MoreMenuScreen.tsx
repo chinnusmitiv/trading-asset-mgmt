@@ -18,36 +18,57 @@ export const MoreMenuScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { user, logout, switchRole } = useAuth();
   const { useMockData } = useSettings();
+  const isStaff = user?.role === 'Staff';
 
   const handleLogout = () => {
     logout();
   };
 
-  const menuSections = [
-    {
-      title: 'FINANCIAL & OPERATIONS',
-      items: [
-        { title: 'Office Expenses', icon: '💳', subtitle: 'Submit and approve bills', route: 'Finance' },
-        { title: 'Staff Salaries', icon: '💰', subtitle: 'Payroll calculation and slips', route: 'Finance' },
-        { title: 'Document Vault', icon: '📁', subtitle: 'Agreements, KYC, Bank proofs on Drive' },
-        { title: 'Financial Reports', icon: '📊', subtitle: 'Export P&L, Investor statements' },
-        { title: 'Business Policies', icon: '📜', subtitle: 'Versioned return and commission rates' }
+  const menuSections = isStaff
+    ? [
+        {
+          title: 'MY WORKSPACE',
+          items: [
+            {
+              title: 'My Commissions',
+              icon: '💼',
+              subtitle: 'Track your earned trade commissions',
+              route: 'StaffCommissions'
+            },
+            {
+              title: 'My Salary Slips',
+              icon: '📄',
+              subtitle: 'Monthly compensation & payment receipts',
+              route: 'PayrollList'
+            }
+          ]
+        }
       ]
-    },
-    {
-      title: 'SECURITY & GOVERNANCE',
-      items: [
-        { title: 'Audit Trail', icon: '🛡️', subtitle: 'Immutable transaction ledger', route: 'AuditLog' },
-        { title: 'Settings & Backend', icon: '⚙️', subtitle: 'API endpoints, Database mode', route: 'Settings' }
-      ]
-    }
-  ];
+    : [
+        {
+          title: 'FINANCIAL & OPERATIONS',
+          items: [
+            { title: 'Office Expenses', icon: '💳', subtitle: 'Submit and approve bills', route: 'Finance' },
+            { title: 'Staff Salaries', icon: '💰', subtitle: 'Payroll calculation and slips', route: 'Finance' },
+            { title: 'Document Vault', icon: '📁', subtitle: 'Agreements, KYC, Bank proofs on Drive' },
+            { title: 'Financial Reports', icon: '📊', subtitle: 'Export P&L, Investor statements' },
+            { title: 'Business Policies', icon: '📜', subtitle: 'Versioned return and commission rates' }
+          ]
+        },
+        {
+          title: 'SECURITY & GOVERNANCE',
+          items: [
+            { title: 'Audit Trail', icon: '🛡️', subtitle: 'Immutable transaction ledger', route: 'AuditLog' },
+            { title: 'Settings & Backend', icon: '⚙️', subtitle: 'API endpoints, Database mode', route: 'Settings' }
+          ]
+        }
+      ];
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
-        title="More Operations"
-        subtitle="Governance, Settings & Controls"
+        title={isStaff ? 'My Workspace' : 'More Operations'}
+        subtitle={isStaff ? 'Personal Desk & Session Controls' : 'Governance, Settings & Controls'}
         user={user}
       />
 

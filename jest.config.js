@@ -11,7 +11,8 @@ module.exports = {
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@types/(.*)$': '<rootDir>/src/types/$1',
     '^@store/(.*)$': '<rootDir>/src/store/$1',
-    '^@constants/(.*)$': '<rootDir>/src/constants/$1'
+    '^@constants/(.*)$': '<rootDir>/src/constants/$1',
+    '^react-native$': '<rootDir>/__mocks__/react-native.js'
   },
   testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx']
 };

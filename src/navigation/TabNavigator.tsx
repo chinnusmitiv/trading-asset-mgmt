@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MainTabParamList } from './types';
 import { THEME } from '../constants/theme';
+import { useAuth } from '../store/AuthContext';
 
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
 import { InvestorsListScreen } from '../screens/investors/InvestorsListScreen';
@@ -15,8 +16,10 @@ import { MoreMenuScreen } from '../screens/more/MoreMenuScreen';
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export const TabNavigator: React.FC = () => {
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 8);
+  const isStaff = user?.role === 'Staff';
 
   return (
     <Tab.Navigator
@@ -55,10 +58,10 @@ export const TabNavigator: React.FC = () => {
       })}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Investors" component={InvestorsListScreen} />
+      {!isStaff && <Tab.Screen name="Investors" component={InvestorsListScreen} />}
       <Tab.Screen name="Trading" component={TradingDashboardScreen} />
-      <Tab.Screen name="Staff" component={StaffListScreen} />
-      <Tab.Screen name="Finance" component={FinanceDashboardScreen} />
+      {!isStaff && <Tab.Screen name="Staff" component={StaffListScreen} />}
+      {!isStaff && <Tab.Screen name="Finance" component={FinanceDashboardScreen} />}
       <Tab.Screen name="More" component={MoreMenuScreen} />
     </Tab.Navigator>
   );

@@ -96,27 +96,87 @@ export class AppsScriptRepository
   }
 
   async updateInvestor(investorId: string, fields: Partial<Investor>): Promise<Investor> {
-    const res = await this.client.request<Investor>('investors.update', { investorId, fields });
-    if (!res.success || !res.data) throw new Error(res.message);
-    return res.data;
+    try {
+      const res = await this.client.request<Investor>('investors.update', { investorId, fields });
+      if (res.success && res.data) return res.data;
+      throw new Error(res.message);
+    } catch (err: any) {
+      if (err.message && err.message.toLowerCase().includes('unsupported action')) {
+        try {
+          const fallback = await this.client.request<Investor>('investor.update', { investorId, fields });
+          if (fallback.success && fallback.data) return fallback.data;
+        } catch {
+          // Ignore secondary failure
+        }
+        throw new Error(
+          'Google Apps Script needs to be updated with the latest ApiRouter.gs. In your Google Apps Script editor, copy backend/google-apps-script/ApiRouter.gs, then click Deploy > Manage deployments > Edit > New version > Deploy.'
+        );
+      }
+      throw err;
+    }
   }
 
   async createInvestment(data: Omit<Investment, 'investmentId' | 'createdAt' | 'updatedAt'>): Promise<Investment> {
-    const res = await this.client.request<Investment>('investments.create', data);
-    if (!res.success || !res.data) throw new Error(res.message);
-    return res.data;
+    try {
+      const res = await this.client.request<Investment>('investments.create', data);
+      if (res.success && res.data) return res.data;
+      throw new Error(res.message);
+    } catch (err: any) {
+      if (err.message && err.message.toLowerCase().includes('unsupported action')) {
+        try {
+          const fallback = await this.client.request<Investment>('investment.create', data);
+          if (fallback.success && fallback.data) return fallback.data;
+        } catch {
+          // Ignore
+        }
+        throw new Error(
+          'Google Apps Script needs to be updated with the latest ApiRouter.gs. In your Google Apps Script editor, copy backend/google-apps-script/ApiRouter.gs, then click Deploy > Manage deployments > Edit > New version > Deploy.'
+        );
+      }
+      throw err;
+    }
   }
 
   async updateInvestment(investmentId: string, fields: Partial<Investment>): Promise<Investment> {
-    const res = await this.client.request<Investment>('investments.update', { investmentId, fields });
-    if (!res.success || !res.data) throw new Error(res.message);
-    return res.data;
+    try {
+      const res = await this.client.request<Investment>('investments.update', { investmentId, fields });
+      if (res.success && res.data) return res.data;
+      throw new Error(res.message);
+    } catch (err: any) {
+      if (err.message && err.message.toLowerCase().includes('unsupported action')) {
+        try {
+          const fallback = await this.client.request<Investment>('investment.update', { investmentId, fields });
+          if (fallback.success && fallback.data) return fallback.data;
+        } catch {
+          // Ignore
+        }
+        throw new Error(
+          'Google Apps Script needs to be updated with the latest ApiRouter.gs. In your Google Apps Script editor, copy backend/google-apps-script/ApiRouter.gs, then click Deploy > Manage deployments > Edit > New version > Deploy.'
+        );
+      }
+      throw err;
+    }
   }
 
   async recordPayment(data: Omit<InvestorPayment, 'paymentId' | 'createdAt'>, requestId?: string): Promise<InvestorPayment> {
-    const res = await this.client.request<InvestorPayment>('payments.create', data, requestId);
-    if (!res.success || !res.data) throw new Error(res.message);
-    return res.data;
+    try {
+      const res = await this.client.request<InvestorPayment>('payments.create', data, requestId);
+      if (res.success && res.data) return res.data;
+      throw new Error(res.message);
+    } catch (err: any) {
+      if (err.message && err.message.toLowerCase().includes('unsupported action')) {
+        try {
+          const fallback = await this.client.request<InvestorPayment>('payment.create', data, requestId);
+          if (fallback.success && fallback.data) return fallback.data;
+        } catch {
+          // Ignore
+        }
+        throw new Error(
+          'Google Apps Script needs to be updated with the latest ApiRouter.gs. In your Google Apps Script editor, copy backend/google-apps-script/ApiRouter.gs, then click Deploy > Manage deployments > Edit > New version > Deploy.'
+        );
+      }
+      throw err;
+    }
   }
 
   async updatePaymentStatus(paymentId: string, status: InvestorPayment['status'], paymentReference?: string, requestId?: string): Promise<InvestorPayment> {
