@@ -20,7 +20,7 @@ import { DashboardSummary } from '../../types';
 import { formatCompactCurrency, formatCurrency } from '../../utils/currency';
 
 export const DashboardScreen: React.FC = () => {
-  const { user, repository, switchRole } = useAuth();
+  const { user, repository } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -65,11 +65,6 @@ export const DashboardScreen: React.FC = () => {
         title="Executive Overview"
         subtitle="Asset Management Command Center"
         user={user}
-        onProfilePress={() => {
-          // Cycle through roles for rapid testing
-          const nextRole = user?.role === 'Admin' ? 'Manager' : user?.role === 'Manager' ? 'Staff' : 'Admin';
-          switchRole(nextRole);
-        }}
       />
 
       <ScrollView

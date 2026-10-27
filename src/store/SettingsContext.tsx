@@ -31,7 +31,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.useMockData !== undefined) setUseMockDataState(parsed.useMockData);
-        if (parsed.apiUrl) setApiUrlState(parsed.apiUrl);
+        if (parsed.apiUrl && !parsed.apiUrl.includes('mock_script_id')) {
+          setApiUrlState(parsed.apiUrl);
+        } else {
+          setApiUrlState(APP_CONFIG.DEFAULT_API_URL);
+        }
         if (parsed.currency) setCurrencyState(parsed.currency);
         if (parsed.timezone) setTimezoneState(parsed.timezone);
       }

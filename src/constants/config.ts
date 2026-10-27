@@ -14,6 +14,6 @@ export const APP_CONFIG = {
     AUTH_USER: '@auth_user_profile',
     APP_SETTINGS: '@app_settings_config'
   },
-  DEFAULT_API_URL: 'https://script.google.com/macros/s/AKfycby_mock_script_id/exec',
-  USE_MOCK_DATA: true // Default to true so app works immediately out of the box
+  DEFAULT_API_URL: 'https://script.google.com/macros/s/AKfycbxzsMSSWl4yikYFV9aLIP7w8C90J9tw-31vBgafzCsOaBx8eZf5GAE3FbdgavkdMGdXuw/exec',
+  USE_MOCK_DATA: false // Connect directly to live Google Sheet
 };

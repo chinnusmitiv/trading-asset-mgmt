@@ -8,7 +8,8 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
-  Image
+  Image,
+  Alert
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../../constants/theme';
@@ -20,7 +21,7 @@ import { useSettings } from '../../store/SettingsContext';
 export const LoginScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { login } = useAuth();
-  const { useMockData } = useSettings();
+  const { useMockData, setUseMockData, apiUrl, setApiUrl } = useSettings();
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
   const [loading, setLoading] = useState(false);
@@ -37,7 +38,8 @@ export const LoginScreen: React.FC = () => {
     try {
       await login(username.trim(), password);
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please check credentials.');
+      const errMsg = err.message || 'Login failed. Please check credentials.';
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -65,6 +67,11 @@ export const LoginScreen: React.FC = () => {
     setError(null);
   };
 
+  const handleToggleBackendMode = async () => {
+    setError(null);
+    await setUseMockData(!useMockData);
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? 24 : 12) }]}>
       <KeyboardAvoidingView
@@ -86,14 +93,46 @@ export const LoginScreen: React.FC = () => {
           </View>
 
           <View style={styles.card}>
+            {/* Backend Connectivity Banner */}
+            <View style={styles.backendModeRow}>
+              <View style={styles.backendStatusBadge}>
+                <View style={[styles.statusDot, useMockData ? styles.statusDotMock : styles.statusDotLive]} />
+                <Text style={styles.backendStatusText}>
+                  {useMockData ? 'Offline Mock Mode' : 'Live Google Sheets'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.switchModeBtn}
+                onPress={handleToggleBackendMode}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.switchModeBtnText}>
+                  {useMockData ? 'Use Live Sheet' : 'Use Mock Data'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <Text style={styles.cardTitle}>Sign In</Text>
             <Text style={styles.cardSubtitle}>
-              Enter operator credentials to access financial dashboard
+              {useMockData
+                ? 'Offline development session with instant in-memory records'
+                : 'Connected to Live Google Spreadsheet database'}
             </Text>
 
             {error ? (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorText}>{error}</Text>
+                {!useMockData && (
+                  <TouchableOpacity
+                    style={styles.errorFallbackBtn}
+                    onPress={() => setUseMockData(true)}
+                  >
+                    <Text style={styles.errorFallbackText}>
+                      Tap here to switch to Offline Mock Mode
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : null}
 
@@ -120,37 +159,36 @@ export const LoginScreen: React.FC = () => {
               style={styles.loginBtn}
             />
 
-            {useMockData ? (
-              <View style={styles.quickFillContainer}>
-                <Text style={styles.quickFillLabel}>Development Quick Switch:</Text>
-                <View style={styles.quickFillButtons}>
-                  <TouchableOpacity
-                    style={styles.quickBtn}
-                    onPress={() => handleQuickFill('admin')}
-                  >
-                    <Text style={styles.quickBtnText}>Admin</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.quickBtn}
-                    onPress={() => handleQuickFill('manager')}
-                  >
-                    <Text style={styles.quickBtnText}>Manager</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.quickBtn}
-                    onPress={() => handleQuickFill('trader1')}
-                  >
-                    <Text style={styles.quickBtnText}>Trader 1</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.quickBtn}
-                    onPress={() => handleQuickFill('trader2')}
-                  >
-                    <Text style={styles.quickBtnText}>Trader 2</Text>
-                  </TouchableOpacity>
-                </View>
+            {/* Quick Fill Credentials (always accessible for rapid authentication) */}
+            <View style={styles.quickFillContainer}>
+              <Text style={styles.quickFillLabel}>1-Tap Demo Credentials:</Text>
+              <View style={styles.quickFillButtons}>
+                <TouchableOpacity
+                  style={styles.quickBtn}
+                  onPress={() => handleQuickFill('admin')}
+                >
+                  <Text style={styles.quickBtnText}>👑 Admin</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickBtn}
+                  onPress={() => handleQuickFill('manager')}
+                >
+                  <Text style={styles.quickBtnText}>👔 Manager</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickBtn}
+                  onPress={() => handleQuickFill('trader1')}
+                >
+                  <Text style={styles.quickBtnText}>📈 Trader 1</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickBtn}
+                  onPress={() => handleQuickFill('trader2')}
+                >
+                  <Text style={styles.quickBtnText}>📈 Trader 2</Text>
+                </TouchableOpacity>
               </View>
-            ) : null}
+            </View>
           </View>
 
           <View style={styles.footer}>
@@ -182,7 +220,7 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: 'center',
-    marginBottom: THEME.spacing.xl
+    marginBottom: THEME.spacing.lg
   },
   logoImage: {
     width: 96,
@@ -208,6 +246,50 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: THEME.colors.background.border
   },
+  backendModeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: THEME.colors.background.cardElevated,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: THEME.borderRadius.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.background.border,
+    marginBottom: THEME.spacing.md
+  },
+  backendStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4
+  },
+  statusDotLive: {
+    backgroundColor: '#10B981'
+  },
+  statusDotMock: {
+    backgroundColor: '#F59E0B'
+  },
+  backendStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.text.primary
+  },
+  switchModeBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: THEME.borderRadius.sm,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)'
+  },
+  switchModeBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: THEME.colors.accent.indigo
+  },
   cardTitle: {
     fontSize: THEME.typography.fontSize.xl,
     fontWeight: '700',
@@ -232,6 +314,17 @@ const styles = StyleSheet.create({
     fontSize: THEME.typography.fontSize.xs,
     fontWeight: '600'
   },
+  errorFallbackBtn: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(244, 63, 94, 0.2)'
+  },
+  errorFallbackText: {
+    color: THEME.colors.accent.indigo,
+    fontSize: 11,
+    fontWeight: '700'
+  },
   loginBtn: {
     marginTop: THEME.spacing.md
   },
@@ -248,7 +341,7 @@ const styles = StyleSheet.create({
   },
   quickFillButtons: {
     flexDirection: 'row',
-    gap: THEME.spacing.sm
+    gap: 6
   },
   quickBtn: {
     flex: 1,
@@ -260,7 +353,7 @@ const styles = StyleSheet.create({
     borderColor: THEME.colors.background.border
   },
   quickBtnText: {
-    fontSize: THEME.typography.fontSize.xs,
+    fontSize: 10,
     color: THEME.colors.accent.indigo,
     fontWeight: '700'
   },

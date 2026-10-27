@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../../constants/theme';
 import { User } from '../../types';
@@ -26,6 +26,31 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 16
   );
 
+  const handleProfilePress = () => {
+    if (onProfilePress) {
+      onProfilePress();
+      return;
+    }
+    if (user) {
+      const roleBadge =
+        user.role === 'Admin'
+          ? '👑 Super Admin (Full Firm Authority)'
+          : user.role === 'Manager'
+          ? '👔 Desk Manager (Operations Lead)'
+          : '📈 Prop Trader / Staff (Personal Workspace)';
+
+      Alert.alert(
+        user.fullName || 'Active Session',
+        `Access Tier: ${roleBadge}\n` +
+        `Username: @${user.username}\n` +
+        `Email: ${user.email || 'N/A'}` +
+        (user.staffId ? `\nStaff ID: ${user.staffId}` : '') +
+        `\nStatus: Authenticated Active`,
+        [{ text: 'Close', style: 'cancel' }]
+      );
+    }
+  };
+
   return (
     <View style={[styles.wrapper, { paddingTop: topPadding }]}>
       <SyncStatusBanner />
@@ -40,7 +65,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           {user ? (
             <TouchableOpacity
               style={styles.avatarButton}
-              onPress={onProfilePress}
+              onPress={handleProfilePress}
               activeOpacity={0.7}
             >
               <View style={styles.avatar}>
